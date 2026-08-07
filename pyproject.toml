@@ -1,0 +1,25 @@
+[project]
+name = "call-me-maybe"
+version = "0.1.0"
+description = ("A function calling system that translates natural language prompts into 
+structured JSON function calls using a small 0.6B parameter language model (Qwen3-0.6B). ")
+readme = "README.md"
+authors = [
+    { name = "mabravo-"}
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.mypy]
+exclude = ["llm_sdk/"]
+
+python_version = "3.12"
+warn_return_any = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+[build-system]
+requires = ["uv_build>=0.12.2,<0.13.0"]
+build-backend = "uv_build"
