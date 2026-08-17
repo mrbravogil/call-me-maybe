@@ -6,13 +6,17 @@ readme = "README.md"
 authors = [
     { name = "mabravo-"}
 ]
+
 requires-python = ">=3.12"
 dependencies = [
-    "numpy",
-    "pydantic",
-    "torch",
-    "transformers",
+    "numpy>=2.4.4",
+    "pydantic>=2.13.3",
+    "torch>=2.11.0",
+    "transformers>=5.8.0",
 ]
+
+[tool.uv]
+package = false
 
 [tool.mypy]
 exclude = ["llm_sdk/"]

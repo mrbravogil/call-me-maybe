@@ -5,7 +5,7 @@ run:
 		--output data/output/function_calls.json
 
 install:
-	uv sync
+	uv sync --no-install-project
 
 debug:
 	uv run python -m pdb -m src
