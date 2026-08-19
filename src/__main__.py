@@ -1,6 +1,9 @@
 import argparse
 import json
+import os
 import sys
+
+from src.encoder import Encoder
 
 
 def parse_args() -> argparse.Namespace:
@@ -20,16 +23,42 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    print("hola")
+def create_encoder(vocab_path: str) -> Encoder:
+    with open(vocab_path, 'r') as f:
+        tokens = json.load(f)
+    return Encoder(tokens)
 
 
 if __name__ == "__main__":
     try:
-        print("CALL ME MAYBE", flush=True)
+        print("\n⚙️⚙️⚙️ CALL ME MAYBE", flush=True)
         args = parse_args()
-        print(f"Arguments: {args}", flush=True)
-        main()
+        print("Importing dependencies...")
+        from llm_sdk.llm_sdk import Small_LLM_Model
+        from src.llm import LLM
+        from src.call_me_maybe import CallMeMaybe
+
+        print("😃 Calling QWEN 0.6b...")
+        small_llm = Small_LLM_Model()
+        print("✅QWEN 0.6b...")
+        encoder = create_encoder(small_llm.get_path_to_vocab_file())
+        llm = LLM(small_llm, encoder)
+        cmm = CallMeMaybe(llm, args.functions_definition)
+
+        prompts: list[str] = []
+        with open(args.input, 'r') as f:
+            prompts = [p['prompt'] for p in json.load(f)]
+        os.makedirs(os.path.dirname(args.output), exist_ok=True)
+        print("\nREQUEST: Processing...")
+        with open(args.output, 'w') as output:
+            output.write("[\n")
+            for i, p in enumerate(prompts):
+                print(f"📓'{p}'...")
+                if i < len(prompts) - 1:
+                    output.write(cmm.process_prompt(p) + ",\n")
+                else:
+                    output.write(cmm.process_prompt(p) + "\n")
+            output.write("]")
 
     except FileNotFoundError as e:
         print(f"File not found: {e.filename}")
@@ -44,3 +73,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"An unexpected error ocurred: {str(e)}")
         sys.exit(1)
+    finally:
+        print("\n⚙️ Programme finished...")

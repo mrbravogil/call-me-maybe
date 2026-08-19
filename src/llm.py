@@ -1,27 +1,30 @@
 import numpy as np
-from pydantic import BaseModel
-from llm_sdk.llm_sdk import Small_LLM_Model
+from pydantic import BaseModel, ConfigDict
 from src.encoder import Encoder
+from llm_sdk.llm_sdk import Small_LLM_Model
 
 
 class LLM(BaseModel):
-    _llm: Small_LLM_Model
-    _encoder: Encoder
-    _t_instruction: list[int] | None
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    llm: Small_LLM_Model
+    encoder: Encoder
+    t_instruction: list[int] | None
 
     def __init__(self, llm: Small_LLM_Model, encoder: Encoder):
-        print("LLM: Building")
-        super().__init__()
-        self._llm = llm
-        self._encoder = encoder
-        self._t_instruction = None
-        print("LLM: Created...")
+        print("\nLLM:")
+        print("🛠️ Building...")
+        super().__init__(
+            llm=llm,
+            encoder=encoder,
+            t_instruction=None)
+        print("✅Created...")
 
     def set_instructions(self, instructions: list[int] | str) -> None:
         """Sets the instruction with information for LLM."""
         if isinstance(instructions, str):
-            instructions = self._encoder.encode(instructions)
-        self._t_instruction = instructions
+            instructions = self.encoder.encode(instructions)
+        self.t_instruction = instructions
 
     def next_token(self,
                    tokens: list[int],
@@ -37,17 +40,24 @@ class LLM(BaseModel):
         mask_options: list[list[int]]
     ) -> list[int]:
         """Return the best allowed option."""
+
         results: list[int] = []
-        context: list[int] = tokens + results
-        for option in mask_options:
-            allowed_options: set[int] = {option[0] for option in mask_options}
+        context: list[int] = list(tokens)
+        active_options: list[list[int]] = [
+            opt[:] for opt in mask_options if opt
+        ]
+
+        while active_options:
+            allowed_options: set[int] = {opt[0] for opt in active_options}
             next_token: int = self.next_token(context, allowed_options)
             results.append(next_token)
             context.append(next_token)
-            mask_options = [option[1:]
-                            for option in mask_options
-                            if option[0] == next_token
-                            and len(option) > 1]
+            active_options = [
+                opt[1:]
+                for opt in active_options
+                if opt[0] == next_token and len(opt) > 1
+            ]
+
         return results
 
     def get_logits(self,
@@ -57,15 +67,15 @@ class LLM(BaseModel):
         Returns the list of logits for provided tokens.
         Applies the mask optionally.
         """
-        instructions: list[int] | None = (self._t_instruction
-                                          if self._t_instruction
+        instructions: list[int] | None = (self.t_instruction
+                                          if self.t_instruction
                                           else [])
         logits: list[float] = []
         if instructions:
             log = instructions + tokens
-            logits = self._llm.get_logits_from_input_ids(log)
+            logits = self.llm.get_logits_from_input_ids(log)
         else:
-            logits = self._llm.get_logits_from_input_ids(tokens)
+            logits = self.llm.get_logits_from_input_ids(tokens)
 
         if mask:
             logits = self._apply_mask(mask, logits)

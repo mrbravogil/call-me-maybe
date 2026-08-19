@@ -8,44 +8,56 @@ from src.encoder import Encoder
 class FunctionDefinition(BaseModel):
     """Pydantic model representing a function definition schema."""
 
-    _name: str = Field(...)
-    _t_name: list[int]
-    _description: str = Field(...)
-    _t_description: list[int]
-    _params: dict[str, Any] = Field(...)
-    _t_params: dict[str, list[int]]
-    _returns: dict[str, Any] = Field(...)
-    _t_returns: dict[str, list[int]]
-    _t_definition: list[int]
+    name: str = Field(...)
+    t_name: list[int]
+    description: str = Field(...)
+    t_description: list[int]
+    params: dict[str, Any] = Field(...)
+    t_params: dict[str, list[int]]
+    t_definition: list[int]
 
     def __init__(self,
                  function: dict[str, Any],
                  encoder: Encoder):
-        self._name = function['name']
-        self._t_name = encoder.encode(self._name)
-        self._description = function['description']
-        self._t_description = encoder.encode(self._description)
-        self._params = {k: v['type']
-                        for k, v in function['parameters'].items()}
-        self._t_params = {k: encoder.encode(v['type'])
-                          for k, v in function['parameters'].items()}
-        self._returns = {k: v['type']
-                         for k, v in function['returns'].items()}
-        self._t_returns = {k: encoder.encode(v['type'])
-                           for k, v in function['returns'].items()}
-        self._t_definition = encoder.encode(self._json_schema())
+        name = function['name']
+        description = function['description']
+        params = {k: v['type']
+                  for k, v in function['parameters'].items()}
+        t_params = {k: encoder.encode(v['type'])
+                    for k, v in function['parameters'].items()}
 
-    def _json_schema(self) -> str:
-        return json.dumps({
-            "name": self._name,
-            "description": self._description,
+        t_definition = encoder.encode(json.dumps({
+            "name": name,
+            "description": description,
             "parameters": {
                 "type": "object",
                 "properties": {
                     k: {"type": v}
-                    for k, v in self._params.items()
+                    for k, v in params.items()
                 },
-                "required": list(self._params.keys())
+                "required": list(params.keys())
+            }
+        }))
+
+        super().__init__(name=name,
+                         t_name=encoder.encode(name),
+                         description=description,
+                         t_description=encoder.encode(description),
+                         params=params,
+                         t_params=t_params,
+                         t_definition=t_definition)
+
+    def _json_schema(self) -> str:
+        return json.dumps({
+            "name": self.name,
+            "description": self.description,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    k: {"type": v}
+                    for k, v in self.params.items()
+                },
+                "required": list(self.params.keys())
             }
         })
 
@@ -56,6 +68,19 @@ class FunctionResponse(BaseModel):
     prompt: str = Field(...)
     name: str = Field(...)
     parameters: dict[str, Any] = Field(...)
+
+    def json_schema(self) -> str:
+        return json.dumps({
+                    "prompt": self.prompt,
+                    "name": self.name,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            k: {"type": v}
+                            for k, v in self.parameters.items()
+                        }
+                    }
+                })
 
     @model_validator(mode="after")
     def validate_add_numbers(self) -> Self:

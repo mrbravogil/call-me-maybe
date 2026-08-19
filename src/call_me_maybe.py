@@ -2,9 +2,9 @@ import json
 import re
 
 from pydantic import BaseModel
-
+from typing import Any
 from src.encoder import Encoder
-from src.function import FunctionDefinition
+from src.function import FunctionDefinition, FunctionResponse
 from src.llm import LLM
 
 
@@ -32,18 +32,51 @@ class CallMeMaybe(BaseModel):
     functions: dict[str, FunctionDefinition]
     t_definitions: list[int]
     t_instructions_prefix: list[int]
-    t_instructions_sufix: list[int]
+    t_instructions_suffix: list[int]
+
+    def __init__(self, llm: LLM, func_definitions: str) -> None:
+        encoder = llm.encoder
+        functions = {}
+        with open(func_definitions, 'r') as f:
+            for func in json.load(f):
+                functions[func['name']] = FunctionDefinition(func,
+                                                             encoder)
+
+        t_definitions = [t for f in functions.values()
+                         for t in f.t_definition]
+
+        t_instructions_prefix = encoder.encode(
+            '<|im_start|>system\n'
+            'You are provided with function signatures '
+            'within <tools></tools> XML tags:\n'
+            '<tools>\n')
+
+        t_instructions_suffix = encoder.encode(
+            '</tools>\n'
+            'For each function call, return a json '
+            'object within <tool_call></tool_call> tags:\n'
+            '<tool_call>\n'
+            '{"name": <function-name>, "arguments": <args-json-object>}\n'
+            '</tool_call>\n'
+            '<|im_end|>\n')
+
+        super().__init__(llm=llm,
+                         encoder=encoder,
+                         functions=functions,
+                         t_definitions=t_definitions,
+                         t_instructions_prefix=t_instructions_prefix,
+                         t_instructions_suffix=t_instructions_suffix)
 
     def set_instructions(self, func: FunctionDefinition | None = None) -> None:
         """Updates the LLM context with function definitions."""
         definitions: list[int] = []
         if func is not None:
-            definitions = func._t_definition
+            definitions = func.t_definition
         else:
             definitions = self.t_definitions
         instructions: list[int] = []
         instructions.extend(self.t_instructions_prefix + definitions)
-        instructions.extend(self.t_instructions_sufix)
+        instructions.extend(self.t_instructions_suffix)
         self.llm.set_instructions(instructions)
 
     def regex_pattern(self, text: str) -> list[int]:
@@ -65,8 +98,8 @@ class CallMeMaybe(BaseModel):
         """Generates the arguments for the function call."""
 
         mask_options: list[list[int]] = []
-        for i, arg_name in enumerate(func._params.keys()):
-            arg_type = func._params[arg_name]
+        for i, arg_name in enumerate(func.params.keys()):
+            arg_type = func.params[arg_name]
 
             if i > 0:
                 tokens += self.encoder.encode(', ')
@@ -92,3 +125,31 @@ class CallMeMaybe(BaseModel):
 
         tokens += self.encoder.encode('}\n')
         return tokens
+
+    def process_prompt(self, prompt: str) -> str:
+        prompt = prompt.replace('\\', '\\\\').replace('"', '\\"')
+        text: str = (
+            '<|im_start|>user\n' +
+            prompt +
+            '\n<|im_end|>\n'
+            '<|im_start|>assistant\n'
+            '<tool_call>\n'
+            '{"name": "'
+        )
+        tokens: list[int] = self.encoder.encode(text)
+        self.set_instructions()
+        func_names = [f.t_name for f in self.functions.values()]
+        func_name = self.llm.next_option(tokens, func_names)
+        func = self.functions[self.encoder.decode(func_name)]
+        tokens += func.t_name
+        tokens += self.encoder.encode('", "arguments": {')
+        self.set_instructions(func)
+        tokens += self.add_args(func, tokens, prompt)
+        tokens += self.encoder.encode('}')
+        raw_output: str = self.encoder.decode(tokens)
+        json_output: str = raw_output[raw_output.find('{"name":'):]
+        output_func: dict[str, Any] = json.loads(json_output)
+        func_response = FunctionResponse(prompt=prompt,
+                                         name=output_func['name'],
+                                         parameters=output_func['arguments'])
+        return func_response.json_schema()

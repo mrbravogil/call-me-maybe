@@ -16,12 +16,14 @@ class Encoder(BaseModel):
 
     def __init__(self, tokens: dict[str, int]) -> None:
         """
-        Encoder class constructor. It builds the encoder's
+        ENCODER class constructor. It builds the eNCODER's
         trie and vocab.
         """
-        vocab: list[str | None] = [None] * len(tokens)
+        max_token_id = max(tokens.values())
+        vocab: list[str | None] = [None] * (max_token_id + 1)
         trie: dict[str, Any] = {}
-        print("Encoder: Building...")
+        print("\nENCODER:")
+        print("🛠️ Building...")
 
         for word, token in tokens.items():
             vocab[token] = word
@@ -33,7 +35,7 @@ class Encoder(BaseModel):
         super().__init__()
         self._trie = trie
         self._vocab = vocab
-        print("Encoder: Created...")
+        print("✅Created...")
 
     def encode(self, text: str) -> list[int]:
         """Translates standard text to a list of token ids for LLM."""
