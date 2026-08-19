@@ -47,7 +47,8 @@ class LLM(BaseModel):
             opt[:] for opt in mask_options if opt
         ]
 
-        while active_options:
+        attempts: int = 0
+        while active_options and attempts < 64:
             allowed_options: set[int] = {opt[0] for opt in active_options}
             next_token: int = self.next_token(context, allowed_options)
             results.append(next_token)
@@ -68,15 +69,14 @@ class LLM(BaseModel):
         Applies the mask optionally.
         """
         instructions: list[int] | None = (self.t_instruction
-                                          if self.t_instruction
-                                          else [])
+                                   if self.t_instruction else [])
         logits: list[float] = []
+        full_input: list[int] = []
         if instructions:
-            log = instructions + tokens
-            logits = self.llm.get_logits_from_input_ids(log)
+            full_input = tokens + instructions
         else:
-            logits = self.llm.get_logits_from_input_ids(tokens)
-
+            full_input = tokens
+        logits = self.llm.get_logits_from_input_ids(full_input)
         if mask:
             logits = self._apply_mask(mask, logits)
 
@@ -91,5 +91,6 @@ class LLM(BaseModel):
         """
         masked_logits: list[float] = len(logits) * [-float('inf')]
         for id in mask:
-            masked_logits[id] = logits[id]
+            if 0 <= id < len(logits):
+                masked_logits[id] = logits[id]
         return masked_logits

@@ -70,17 +70,7 @@ class FunctionResponse(BaseModel):
     parameters: dict[str, Any] = Field(...)
 
     def json_schema(self) -> str:
-        return json.dumps({
-                    "prompt": self.prompt,
-                    "name": self.name,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            k: {"type": v}
-                            for k, v in self.parameters.items()
-                        }
-                    }
-                })
+        return json.dumps(self.model_dump())
 
     @model_validator(mode="after")
     def validate_add_numbers(self) -> Self:

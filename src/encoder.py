@@ -29,8 +29,7 @@ class Encoder(BaseModel):
             vocab[token] = word
             node: dict[str, Any] = trie
             for c in word:
-                if c not in node:
-                    node = node.setdefault(c, {})
+                node = node.setdefault(c, {})
             node['token'] = token
         super().__init__()
         self._trie = trie
@@ -54,11 +53,11 @@ class Encoder(BaseModel):
                 if 'token' in node:
                     match_id = node['token']
                     match_len = j - i
-                if match_id is not None:
-                    ids.append(match_id)
-                    i += match_len
-                else:
-                    i += 1
+            if match_id is not None:
+                ids.append(match_id)
+                i += match_len
+            else:
+                i += 1
 
         return ids
 
@@ -74,12 +73,11 @@ class Encoder(BaseModel):
         e_text = text.replace('\\"', '"')
         parts = WORD_PATTERN.findall(e_text)
         for p in parts:
-            p.strip('".,!?:;\\')
-            p.strip("'")
-            if not p:
+            cleaned = p.strip('".,!?:;\\').strip("'")
+            if not cleaned:
                 continue
             else:
-                ids.append(self.encode(p))
+                ids.append(self.encode(cleaned))
         return ids
 
     def decode(self, tokens: list[int] | int) -> str:
@@ -87,7 +85,7 @@ class Encoder(BaseModel):
         if isinstance(tokens, int):
             return self._vocab[tokens] or ''
         return llm_to_standard(
-            " ".join(self._vocab[token] or '' for token in tokens))
+            "".join(self._vocab[token] or '' for token in tokens))
 
 
 def llm_to_standard(text: str) -> str:

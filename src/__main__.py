@@ -31,14 +31,14 @@ def create_encoder(vocab_path: str) -> Encoder:
 
 if __name__ == "__main__":
     try:
-        print("\n⚙️⚙️⚙️ CALL ME MAYBE", flush=True)
+        print("\n⚙️ ⚙️ ⚙️ CALL ME MAYBE", flush=True)
         args = parse_args()
         print("Importing dependencies...")
         from llm_sdk.llm_sdk import Small_LLM_Model
         from src.llm import LLM
         from src.call_me_maybe import CallMeMaybe
 
-        print("😃 Calling QWEN 0.6b...")
+        print("\n😃 Calling QWEN 0.6b...")
         small_llm = Small_LLM_Model()
         print("✅QWEN 0.6b...")
         encoder = create_encoder(small_llm.get_path_to_vocab_file())
