@@ -69,7 +69,7 @@ class LLM(BaseModel):
         Applies the mask optionally.
         """
         instructions: list[int] | None = (self.t_instruction
-                                   if self.t_instruction else [])
+                                          if self.t_instruction else [])
         logits: list[float] = []
         full_input: list[int] = []
         if instructions:
