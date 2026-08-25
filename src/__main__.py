@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+from dotenv import load_dotenv
 
 from src.encoder import Encoder
 
@@ -33,6 +34,7 @@ def create_encoder(vocab_path: str) -> Encoder:
 if __name__ == "__main__":
     try:
         print("\n⚙️ ⚙️ ⚙️ CALL ME MAYBE⚙️ ⚙️ ⚙️", flush=True)
+        load_dotenv()
         args = parse_args()
         start = time.time()
         print("Importing dependencies...")
@@ -62,7 +64,6 @@ if __name__ == "__main__":
                     output.write(cmm.process_prompt(p) + "\n")
             output.write("]")
         end = time.time()
-        print(f"Run: {end-start}")
 
     except FileNotFoundError as e:
         print(f"File not found: {e.filename}")
@@ -78,4 +79,5 @@ if __name__ == "__main__":
         print(f"An unexpected error ocurred: {str(e)}")
         sys.exit(1)
     finally:
+        print(f"Run: {int((end-start)/60)} minutes")
         print("⚙️ Programme finished...")

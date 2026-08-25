@@ -40,26 +40,83 @@ class LLM(BaseModel):
         mask_options: list[list[int]]
     ) -> list[int]:
         """Return the best allowed option."""
+        if not mask_options:
+            raise ValueError("LLM, next_option(): mask_options cannot "
+                             "be empty.")
 
-        results: list[int] = []
-        context: list[int] = list(tokens)
-        active_options: list[list[int]] = [
-            opt[:] for opt in mask_options if opt
-        ]
+        candidates = [option[:] for option in mask_options]
+        best_option: list[int] = []
+        current_tokens = tokens[:]
 
-        attempts: int = 0
-        while active_options and attempts < 64:
-            allowed_options: set[int] = {opt[0] for opt in active_options}
-            next_token: int = self.next_token(context, allowed_options)
-            results.append(next_token)
-            context.append(next_token)
-            active_options = [
-                opt[1:]
-                for opt in active_options
-                if opt[0] == next_token and len(opt) > 1
+        while True:
+            if len(candidates) == 1 and len(best_option) == len(candidates):
+                return candidates[0]
+
+            valid_option = [opt for opt in candidates
+                            if opt[:len(best_option)] == best_option]
+            if not valid_option:
+                raise ValueError("LLM, next_option():"
+                                 "no valid options remain.")
+
+            last_option = [opt for opt in valid_option
+                           if len(opt) == len(best_option)]
+            if last_option and len(valid_option) == 1:
+                return last_option[0]
+
+            allowed_next_tokens = {
+                opt[len(best_option)]
+                for opt in valid_option
+                if len(opt) > len(best_option)
+            }
+            if not allowed_next_tokens:
+                if last_option:
+                    return last_option[0]
+                raise ValueError("LLM, next_option(): options ended "
+                                 "unexpectedly.")
+
+            n_token = self.next_token(current_tokens, allowed_next_tokens)
+            if n_token not in allowed_next_tokens:
+                raise ValueError(
+                    f"Masked decoding invariant broken: {n_token}"
+                    f"not in {allowed_next_tokens}"
+                )
+            best_option.append(n_token)
+            current_tokens.append(n_token)
+
+            candidates = [
+                opt for opt in valid_option
+                if len(opt) >= len(best_option)
+                and opt[:len(best_option)] == best_option
             ]
 
-        return results
+
+
+    # def _score_options(self, context: list[int], option: list[int]) -> float:
+    #     """Score one full candidate by cumulative log-probability."""
+    #     score: float = 0.0
+    #     current_context = context.copy()
+
+    #     for token in option:
+    #         logits = np.asarray(self.get_logits(current_context))
+
+    #         if not 0 <= token < len(logits):
+    #             return -float('inf')
+
+    #         logits = logits - np.max(logits)
+
+    #         '''
+    #         Implements a numerically stable Log-Softmax operation to convert
+    #         raw model outputs (logits) into log-probabilities. First, np.exp(logits)
+    #         exponentiates the scores to make them positive, and np.sum adds them together to
+    #         find the total scale. Finally, subtracting the log of this sum from the original
+    #         logits mathematically computes the logarithm of each individual score divided by the
+    #         total sum.
+    #         '''
+    #         probabilities = logits - np.log(np.sum(np.exp(logits)))
+    #         score += probabilities[token]
+    #         current_context.append(token)
+
+    #     return score
 
     def get_logits(self,
                    tokens: list[int],
@@ -73,7 +130,7 @@ class LLM(BaseModel):
         logits: list[float] = []
         full_input: list[int] = []
         if instructions:
-            full_input = tokens + instructions
+            full_input = instructions + tokens
         else:
             full_input = tokens
         logits = self.llm.get_logits_from_input_ids(full_input)
