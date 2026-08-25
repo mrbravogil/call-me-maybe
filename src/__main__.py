@@ -37,6 +37,7 @@ if __name__ == "__main__":
         load_dotenv()
         args = parse_args()
         start = time.time()
+        model_load_start = time.time()
         print("Importing dependencies...")
         from llm_sdk.llm_sdk import Small_LLM_Model
         from src.llm import LLM
@@ -45,24 +46,43 @@ if __name__ == "__main__":
         print("\n😃 Calling QWEN 0.6b...")
         small_llm = Small_LLM_Model()
         print("✅QWEN 0.6b...")
+        model_load_end = time.time()
+
+        encoder_start = time.time()
         encoder = create_encoder(small_llm.get_path_to_vocab_file())
+        encoder_end = time.time()
+
+        wiring_start = time.time()
         llm = LLM(small_llm, encoder)
         cmm = CallMeMaybe(llm, args.functions_definition)
+        wiring_end = time.time()
+
+        print(f"⏱️ Model load: {model_load_end - model_load_start:.2f}s")
+        print(f"⏱️ Encoder build: {encoder_end - encoder_start:.2f}s")
+        print(f"⏱️ App wiring: {wiring_end - wiring_start:.2f}s")
 
         prompts: list[str] = []
         with open(args.input, 'r') as f:
             prompts = [p['prompt'] for p in json.load(f)]
         os.makedirs(os.path.dirname(args.output), exist_ok=True)
         print("\nREQUEST: Processing...")
+        processing_start = time.time()
         with open(args.output, 'w') as output:
             output.write("[\n")
             for i, p in enumerate(prompts):
+                prompt_start = time.time()
                 print(f"📓'{p}'...")
+                result = cmm.process_prompt(p)
+                prompt_end = time.time()
+                print(f"⏱️ Prompt time: {prompt_end - prompt_start:.2f}s")
                 if i < len(prompts) - 1:
-                    output.write(cmm.process_prompt(p) + ",\n")
+                    output.write(",\n")
                 else:
-                    output.write(cmm.process_prompt(p) + "\n")
+                    output.write("\n")
             output.write("]")
+            processing_end = time.time()
+            print("⏱️ Prompt processing total: "
+                  "{processing_end - processing_start:.2f}s")
         end = time.time()
 
     except FileNotFoundError as e:
@@ -79,5 +99,7 @@ if __name__ == "__main__":
         print(f"An unexpected error ocurred: {str(e)}")
         sys.exit(1)
     finally:
+        print(f"Run: {int((end-start)/60)} minutes")
+        print(f"⏱️ Total run: {end - start:.2f}s")
         print(f"Run: {int((end-start)/60)} minutes")
         print("⚙️ Programme finished...")

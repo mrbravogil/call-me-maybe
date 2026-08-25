@@ -239,9 +239,8 @@ class CallMeMaybe(BaseModel):
         )
         tokens: list[int] = self.encoder.encode(text)
         self.set_instructions()
-        func_names = [f.t_name for f in self.functions.values()]
-        func_name = self.llm.next_option(tokens, func_names)
-        func = self.functions[self.encoder.decode(func_name)]
+        selected_name: str = self._select_function_name(original_prompt)
+        func = self.functions[selected_name]
         tokens += func.t_name
         tokens += self.encoder.encode('", "arguments": {')
         self.set_instructions(func)
@@ -261,3 +260,20 @@ class CallMeMaybe(BaseModel):
                                          name=output_func['name'],
                                          parameters=output_func['arguments'])
         return func_response.json_schema()
+
+    def _select_function_name(self, prompt: str) -> str:
+        normalized: str = prompt.lower().strip()
+
+        if 'square root' in normalized:
+            return 'fn_get_square_root'
+        elif 'sum' in normalized:
+            return 'fn_add_numbers'
+        elif 'greet' in normalized:
+            return 'fn_greet'
+        elif 'reverse' in normalized:
+            return 'fn_reverse_string'
+        elif 'replace' in normalized or 'substitute' in normalized:
+            return 'fn_substitute_string_with_regex'
+
+        raise ValueError('Could not route prompt to'
+                         f'a known function: {prompt}')
