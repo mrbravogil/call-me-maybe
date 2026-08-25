@@ -52,57 +52,68 @@ uv add --dev flake8 mypy --frozen
 uv lock
 ```
 
-## Performance issue found
+## Performance work completed
 
-The main bottleneck was in `src/call_me_maybe.py` during function routing.
+The main bottleneck investigation focused on `src/call_me_maybe.py`, especially inside `process_prompt()` when selecting the target function.
 
-Originally, `CallMeMaybe.process_prompt()` delegated function selection to the LLM by asking it to build the function name token by token. That routing path looked roughly like this:
+### Original bottleneck
 
-1. Build the prompt context for the user request
+The original routing flow was:
+
+1. Build the user prompt context
 2. Call `self.llm.next_option(...)`
-3. Let `src/llm.py` select the function name one token at a time
-4. For each token step, call `get_logits()`
-5. Inside `llm_sdk`, run a full model forward pass to get the next-token logits
+3. Let `src/llm.py` choose the function name token by token through `next_token()`
+4. Call `get_logits()` for each token step
+5. Let `llm_sdk` run a model forward pass for every step
 
-This design created a major performance problem:
+This was expensive because function names can be long, for example `fn_substitute_string_with_regex`, and every token decision required another inference call. In the current CPU-only environment, that pushed `make run` to around **12 minutes**.
 
-- the model was used to generate long function names such as `fn_substitute_string_with_regex`
-- the selection was greedy and token-by-token
-- each token decision triggered a full inference pass
-- the whole run executed on CPU in the current environment
+## What was tried
 
-As a result, `make run` was taking around **12 minutes** for the current prompt set.
+During the investigation, the routing layer was temporarily redesigned to reduce runtime:
 
-## How the bottleneck was resolved
+- dynamic labels were generated from `data/input/functions_definition.json`
+- the LLM was asked to classify a short label instead of generating the full function name
+- debug timings were added to `src/__main__.py`
+- extra tracing was added to `next_token()` and `get_logits()` to understand when the SDK was called and what it received
 
-The routing logic was redesigned inside `CallMeMaybe` to keep the system dynamic while removing the expensive token-by-token function-name generation.
+This helped clarify the runtime behaviour and showed exactly where the cost was concentrated.
 
-### Previous approach
+## Why that version was not kept
 
-- Functions were loaded dynamically from `data/input/functions_definition.json`
-- The LLM tried to emit the full function name directly
-- This made routing expensive and slow
+Although the dynamic classification approach reduced runtime significantly, it did not produce reliable routing decisions. In practice, the model kept collapsing to incorrect function choices, especially around the routing step.
 
-### New dynamic approach
+That means the faster variant was useful for diagnosis, but not good enough for correct output.
 
-- Functions are still loaded dynamically from `data/input/functions_definition.json`
-- `CallMeMaybe` now builds a dynamic list of candidate functions from those definitions
-- Instead of generating a long function name token by token, the routing step can classify among short candidate labels
-- The rest of the pipeline continues to infer arguments locally and assemble the final JSON response
+## Current decision
 
-This preserves the dynamic nature of the project:
+For now, the project continues using the original routing path based on:
 
-- adding new functions to `functions_definition.json` updates the candidate set
-- the router is no longer tied to a fully hardcoded fixed list
-- the LLM integration remains part of the architecture
+- `process_prompt()`
+- `next_option()`
+- `next_token()`
 
-## Practical outcome
+This path is slower, but it is currently the one producing the correct responses more consistently.
 
-After removing the heavy token-by-token routing bottleneck in `CallMeMaybe`, total runtime dropped from about **12 minutes** to about **36 seconds** in the current environment.
+## Current status
+
+- **Correctness priority:** kept
+- **Current runtime:** about **8 minutes**
+- **Main bottleneck still active:** function-name routing through repeated token-level inference
+
+The work so far reduced the original runtime from roughly **12 minutes** to around **8 minutes**, but the routing stage is still the dominant cost.
+
+## Remaining optimization target
+
+The next optimization goal is to improve routing without losing correctness.
+
+The open problem is not whether `llm_sdk` should be used — it must remain part of the project — but how to use it in a way that is both:
+
+1. dynamic with respect to `functions_definition.json`
+2. reliable enough to keep correct function selection
+3. faster than the current token-by-token `next_option()` path
 
 ## Remaining considerations
-
-There are still additional optimization opportunities:
 
 1. **CPU-only execution**  
    The runtime is currently falling back to CPU, which still limits inference speed.
@@ -114,4 +125,4 @@ There are still additional optimization opportunities:
    The program still loads the tokenizer/model and builds a custom encoder from vocab files.
 
 4. **Future routing refinement**  
-   The ideal long-term design is to use `llm_sdk` for efficient dynamic classification, not for long token-by-token function-name generation.
+   The best future improvement is a routing strategy that stays dynamic, keeps `llm_sdk` in the loop, and avoids the heavy cost of generating long function names token by token.

@@ -82,7 +82,7 @@ if __name__ == "__main__":
             output.write("]")
             processing_end = time.time()
             print("⏱️ Prompt processing total: "
-                  "{processing_end - processing_start:.2f}s")
+                  f"{processing_end - processing_start:.2f}s")
         end = time.time()
 
     except FileNotFoundError as e:
