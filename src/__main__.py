@@ -12,15 +12,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--functions_definition',
-        default='data/input/functions_definition.json'
+        default='data/input/functions_definition2.json'
     )
     parser.add_argument(
         '--input',
-        default='data/input/function_calling_tests.json'
+        default='data/input/function_calling_tests2.json'
     )
     parser.add_argument(
         '--output',
-        default='data/output/function_calling_results.json'
+        default='data/output/function_calling_results2.json'
     )
     return parser.parse_args()
 

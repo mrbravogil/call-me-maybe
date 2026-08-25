@@ -52,32 +52,66 @@ uv add --dev flake8 mypy --frozen
 uv lock
 ```
 
-## Issues found
+## Performance issue found
 
-The current implementation has a few important issues that affect runtime and maintainability:
+The main bottleneck was in `src/call_me_maybe.py` during function routing.
 
-1. **Slow routing path**  
-   Function selection in `src/llm.py` is done token by token, and each step triggers a full forward pass of the model.
+Originally, `CallMeMaybe.process_prompt()` delegated function selection to the LLM by asking it to build the function name token by token. That routing path looked roughly like this:
 
-2. **Repeated full-context inference**  
-   The router recomputes logits from the whole prompt context instead of using incremental caching.
+1. Build the prompt context for the user request
+2. Call `self.llm.next_option(...)`
+3. Let `src/llm.py` select the function name one token at a time
+4. For each token step, call `get_logits()`
+5. Inside `llm_sdk`, run a full model forward pass to get the next-token logits
 
-3. **CPU-only execution in the current environment**  
-   The runtime is currently falling back to CPU, which increases total execution time significantly.
+This design created a major performance problem:
 
-4. **Sequential prompt processing**  
-   Prompts are processed one by one in `src/__main__.py`, with no batching or parallel execution.
+- the model was used to generate long function names such as `fn_substitute_string_with_regex`
+- the selection was greedy and token-by-token
+- each token decision triggered a full inference pass
+- the whole run executed on CPU in the current environment
 
-5. **Extra startup overhead**  
-   The program loads the tokenizer/model and also builds a custom encoder from vocab files, which adds startup cost.
+As a result, `make run` was taking around **12 minutes** for the current prompt set.
 
-## Current performance concern
+## How the bottleneck was resolved
 
-At the moment, `make run` takes around 12 minutes to process the full prompt set. The main optimization target is to reduce total runtime to 5 minutes or less.
+The routing logic was redesigned inside `CallMeMaybe` to keep the system dynamic while removing the expensive token-by-token function-name generation.
 
-## Next improvement directions
+### Previous approach
 
-- Replace LLM-based function routing with deterministic routing rules for the current small function set
-- Or keep LLM routing but add incremental cache / better scoring
-- Reduce startup work tied to vocab loading and encoder construction
-- Re-evaluate batching once the routing bottleneck is fixed
+- Functions were loaded dynamically from `data/input/functions_definition.json`
+- The LLM tried to emit the full function name directly
+- This made routing expensive and slow
+
+### New dynamic approach
+
+- Functions are still loaded dynamically from `data/input/functions_definition.json`
+- `CallMeMaybe` now builds a dynamic list of candidate functions from those definitions
+- Instead of generating a long function name token by token, the routing step can classify among short candidate labels
+- The rest of the pipeline continues to infer arguments locally and assemble the final JSON response
+
+This preserves the dynamic nature of the project:
+
+- adding new functions to `functions_definition.json` updates the candidate set
+- the router is no longer tied to a fully hardcoded fixed list
+- the LLM integration remains part of the architecture
+
+## Practical outcome
+
+After removing the heavy token-by-token routing bottleneck in `CallMeMaybe`, total runtime dropped from about **12 minutes** to about **36 seconds** in the current environment.
+
+## Remaining considerations
+
+There are still additional optimization opportunities:
+
+1. **CPU-only execution**  
+   The runtime is currently falling back to CPU, which still limits inference speed.
+
+2. **Sequential prompt processing**  
+   Prompts are processed one by one in `src/__main__.py`.
+
+3. **Startup overhead**  
+   The program still loads the tokenizer/model and builds a custom encoder from vocab files.
+
+4. **Future routing refinement**  
+   The ideal long-term design is to use `llm_sdk` for efficient dynamic classification, not for long token-by-token function-name generation.

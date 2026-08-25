@@ -238,7 +238,6 @@ class CallMeMaybe(BaseModel):
             '{"name": "'
         )
         tokens: list[int] = self.encoder.encode(text)
-        self.set_instructions()
         selected_name: str = self._select_function_name(original_prompt)
         func = self.functions[selected_name]
         tokens += func.t_name
@@ -262,18 +261,72 @@ class CallMeMaybe(BaseModel):
         return func_response.json_schema()
 
     def _select_function_name(self, prompt: str) -> str:
-        normalized: str = prompt.lower().strip()
+        labels = self._build_function_labels()
+        function_prompt = self._build_functions_prompt(prompt, labels)
+        selected_label = self._classify_function_label(function_prompt,
+                                                       labels)
+        return labels[selected_label].name
 
-        if 'square root' in normalized:
-            return 'fn_get_square_root'
-        elif 'sum' in normalized:
-            return 'fn_add_numbers'
-        elif 'greet' in normalized:
-            return 'fn_greet'
-        elif 'reverse' in normalized:
-            return 'fn_reverse_string'
-        elif 'replace' in normalized or 'substitute' in normalized:
-            return 'fn_substitute_string_with_regex'
+    def _build_function_labels(self) -> dict[str, FunctionDefinition]:
+        function_items = list(self.functions.values())
+        if len(function_items) > 26:
+            raise ValueError('Too many functions for single-letter labels.')
 
-        raise ValueError('Could not route prompt to'
-                         f'a known function: {prompt}')
+        labels: dict[str, FunctionDefinition] = {}
+        for i, f in enumerate(function_items):
+            label = chr(ord('A') + i)
+            labels[label] = f
+        return labels
+
+    def _build_functions_prompt(self,
+                                prompt: str,
+                                labels: dict[str, FunctionDefinition]) -> str:
+        lines = [
+            'You are selecting the best function for a user request. ',
+            'Available functions:'
+        ]
+
+        for label, function in labels.items():
+            params = ', '.join(
+                f'{name}: {type_name}'
+                for name, type_name in function.params.items()
+            )
+            lines.append(
+                f'{label}: {function.name} - '
+                f'{function.description} '
+                f'Parameters: {params}.'
+            )
+        allowed = ', '.join(labels.keys())
+        lines.extend([
+            ' User request:',
+            prompt,
+            f' Respond with only one label: {allowed}.',
+        ])
+        return '\n'.join(lines)
+
+    def _classify_function_label(
+            self,
+            function_prompt: str,
+            labels: dict[str, FunctionDefinition]
+    ) -> str:
+        self.llm.set_instructions([])
+        tokens = self.encoder.encode(function_prompt)
+
+        label_map: dict[str, int] = {}
+        for label in labels.keys():
+            encoded = self.encoder.encode(label)
+            if len(encoded) != 1:
+                raise ValueError(
+                    f'Label {label} is not a single token: {encoded}'
+                )
+            label_map[label] = encoded[0]
+
+        allowed_tokens = set(label_map.values())
+        selected_token = self.llm.next_token(tokens, allowed_tokens)
+
+        for label, token in label_map.items():
+            if token == selected_token:
+                return label
+
+        raise ValueError(
+            f'LLM selected unknown routing token: {selected_token}')

@@ -30,9 +30,29 @@ class LLM(BaseModel):
                    tokens: list[int],
                    mask: set[int] | None = None) -> int:
         """Returns the next token for the provided tokens."""
+        print("\n[LLM.next_token] called")
+        print(f"[LLM.next_token] input token count: {len(tokens)}")
+        print("[LLM.next_token] decoded input: "
+              f"{self.encoder.decode(tokens)!r}")
+        if mask:
+            decoded_mask = []
+            for token_id in sorted(mask):
+                try:
+                    decoded_mask.append((token_id,
+                                         self.encoder.decode([token_id])))
+                except Exception:
+                    decoded_mask.append((token_id, "<decode-error>"))
+            print(f"[LLM.next_token] allowed tokens: {decoded_mask}")
+
         logits = self.get_logits(tokens, mask)
-        next_token = int(np.argmax(logits))
-        return next_token
+        selected_token = int(np.argmax(logits))
+        try:
+            decoded_next = self.encoder.decode([selected_token])
+        except Exception:
+            decoded_next = "<decode-error>"
+        print(f"[LLM.next_token] selected token id: {selected_token}")
+        print(f"[LLM.next_token] selected token text: {decoded_next!r}")
+        return selected_token
 
     def next_option(
         self,
@@ -89,35 +109,6 @@ class LLM(BaseModel):
                 and opt[:len(best_option)] == best_option
             ]
 
-
-
-    # def _score_options(self, context: list[int], option: list[int]) -> float:
-    #     """Score one full candidate by cumulative log-probability."""
-    #     score: float = 0.0
-    #     current_context = context.copy()
-
-    #     for token in option:
-    #         logits = np.asarray(self.get_logits(current_context))
-
-    #         if not 0 <= token < len(logits):
-    #             return -float('inf')
-
-    #         logits = logits - np.max(logits)
-
-    #         '''
-    #         Implements a numerically stable Log-Softmax operation to convert
-    #         raw model outputs (logits) into log-probabilities. First, np.exp(logits)
-    #         exponentiates the scores to make them positive, and np.sum adds them together to
-    #         find the total scale. Finally, subtracting the log of this sum from the original
-    #         logits mathematically computes the logarithm of each individual score divided by the
-    #         total sum.
-    #         '''
-    #         probabilities = logits - np.log(np.sum(np.exp(logits)))
-    #         score += probabilities[token]
-    #         current_context.append(token)
-
-    #     return score
-
     def get_logits(self,
                    tokens: list[int],
                    mask: set[int] | None = None) -> list[float]:
@@ -133,9 +124,18 @@ class LLM(BaseModel):
             full_input = instructions + tokens
         else:
             full_input = tokens
+        print("\n[LLM.get_logits] sending request to llm_sdk")
+        if instructions:
+            print("[LLM.get_logits] instructions count: "
+                  f"{len(instructions)}")
+        print(f"[LLM.get_logits] prompt token count: {len(tokens)}")
+        print(f"[LLM.get_logits] full input token count: {len(full_input)}")
+        print("[LLM.get_logits] full decoded input: "
+              f"{self.encoder.decode(full_input)!r}")
         logits = self.llm.get_logits_from_input_ids(full_input)
         if mask:
             logits = self._apply_mask(mask, logits)
+            print("[LLM.get_logits] mask applied to logits")
 
         return logits
 
