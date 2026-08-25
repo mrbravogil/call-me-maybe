@@ -12,15 +12,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--functions_definition',
-        default='data/input/functions_definition2.json'
+        default='data/input/functions_definition.json'
     )
     parser.add_argument(
         '--input',
-        default='data/input/function_calling_tests2.json'
+        default='data/input/function_calling_tests.json'
     )
     parser.add_argument(
         '--output',
-        default='data/output/function_calling_results2.json'
+        default='data/output/function_calling_results.json'
     )
     return parser.parse_args()
 
@@ -76,9 +76,9 @@ if __name__ == "__main__":
                 prompt_end = time.time()
                 print(f"⏱️ Prompt time: {prompt_end - prompt_start:.2f}s")
                 if i < len(prompts) - 1:
-                    output.write(",\n")
+                    output.write(result + ",\n")
                 else:
-                    output.write("\n")
+                    output.write(result + "\n")
             output.write("]")
             processing_end = time.time()
             print("⏱️ Prompt processing total: "

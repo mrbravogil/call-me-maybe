@@ -238,8 +238,10 @@ class CallMeMaybe(BaseModel):
             '{"name": "'
         )
         tokens: list[int] = self.encoder.encode(text)
-        selected_name: str = self._select_function_name(original_prompt)
-        func = self.functions[selected_name]
+        self.set_instructions()
+        func_names = [f.t_name for f in self.functions.values()]
+        func_name = self.llm.next_option(tokens, func_names)
+        func = self.functions[self.encoder.decode(func_name)]
         tokens += func.t_name
         tokens += self.encoder.encode('", "arguments": {')
         self.set_instructions(func)
@@ -260,11 +262,45 @@ class CallMeMaybe(BaseModel):
                                          parameters=output_func['arguments'])
         return func_response.json_schema()
 
+    # def process_prompt(self, prompt: str) -> str:
+    #     original_prompt = prompt
+    #     prompt = prompt.replace('\\', '\\\\').replace('"', '\\"')
+    #     text: str = (
+    #         '<|im_start|>user\n' +
+    #         prompt +
+    #         '\n<|im_end|>\n'
+    #         '<|im_start|>assistant\n'
+    #         '<tool_call>\n'
+    #         '{"name": "'
+    #     )
+    #     tokens: list[int] = self.encoder.encode(text)
+    #     selected_name: str = self._select_function_name(original_prompt)
+    #     func = self.functions[selected_name]
+    #     tokens += func.t_name
+    #     tokens += self.encoder.encode('", "arguments": {')
+    #     self.set_instructions(func)
+    #     tokens += self.add_args(func, tokens, prompt)
+    #     tokens += self.encoder.encode('}')
+    #     raw_output: str = self.encoder.decode(tokens)
+    #     json_output: str = raw_output[raw_output.find('{"name":'):]
+    #     try:
+    #         output_func: dict[str, Any] = json.loads(json_output)
+    #     except json.JSONDecodeError:
+    #         output_func = {
+    #             'name': func.name,
+    #             'arguments': self._infer_arguments(func, original_prompt),
+    #         }
+    #     func_response = FunctionResponse(prompt=prompt,
+    #                                      name=output_func['name'],
+    #                                      parameters=output_func['arguments'])
+    #     return func_response.json_schema()
+
     def _select_function_name(self, prompt: str) -> str:
         labels = self._build_function_labels()
         function_prompt = self._build_functions_prompt(prompt, labels)
         selected_label = self._classify_function_label(function_prompt,
                                                        labels)
+        print("SELECTED LABEL:", selected_label)
         return labels[selected_label].name
 
     def _build_function_labels(self) -> dict[str, FunctionDefinition]:
@@ -301,6 +337,9 @@ class CallMeMaybe(BaseModel):
             ' User request:',
             prompt,
             f' Respond with only one label: {allowed}.',
+            f' Available labels: {allowed}.',
+            'Answer with exactly one label.',
+            'Best function label: ',
         ])
         return '\n'.join(lines)
 
@@ -312,21 +351,10 @@ class CallMeMaybe(BaseModel):
         self.llm.set_instructions([])
         tokens = self.encoder.encode(function_prompt)
 
-        label_map: dict[str, int] = {}
+        label_map: dict[str, list[int]] = {}
         for label in labels.keys():
             encoded = self.encoder.encode(label)
-            if len(encoded) != 1:
-                raise ValueError(
-                    f'Label {label} is not a single token: {encoded}'
-                )
-            label_map[label] = encoded[0]
+            label_map[label] = encoded
 
-        allowed_tokens = set(label_map.values())
-        selected_token = self.llm.next_token(tokens, allowed_tokens)
-
-        for label, token in label_map.items():
-            if token == selected_token:
-                return label
-
-        raise ValueError(
-            f'LLM selected unknown routing token: {selected_token}')
+        print("LABEL MAP:", {k: v.name for k, v in labels.items()})
+        return self.llm.score_options(tokens, label_map)

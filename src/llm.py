@@ -109,6 +109,49 @@ class LLM(BaseModel):
                 and opt[:len(best_option)] == best_option
             ]
 
+    def score_options(
+            self,
+            tokens: list[int],
+            options: dict[str, list[int]]
+    ) -> str:
+        """Return the label of the highest-scoring candidate option."""
+        if not options:
+            raise ValueError("LLM.score_options(): options cannot be empty.")
+
+        best_label: str | None = None
+        best_score: float = -float("inf")
+
+        for label, option in options.items():
+            score = self._score_option(tokens, option)
+            if score > best_score:
+                best_score = score
+                best_label = label
+
+        if best_label is None:
+            raise ValueError("LLM.score_options(): no option could be scored.")
+
+        return best_label
+
+    def _score_option(self,
+                      tokens: list[int],
+                      options: list[int]) -> float:
+        """Score one full candidate by cumulative log-probability."""
+        score: float = 0.0
+        current_context = tokens.copy()
+
+        for token in options:
+            logits = np.asarray(self.get_logits(current_context))
+
+            if not 0 <= token < len(logits):
+                return -float('inf')
+
+            logits = logits - np.max(logits)
+            log_probs = logits - np.log(np.sum(np.exp(logits)))
+            score += float(log_probs[token])
+            current_context.append(token)
+
+        return score
+
     def get_logits(self,
                    tokens: list[int],
                    mask: set[int] | None = None) -> list[float]:
@@ -124,18 +167,9 @@ class LLM(BaseModel):
             full_input = instructions + tokens
         else:
             full_input = tokens
-        print("\n[LLM.get_logits] sending request to llm_sdk")
-        if instructions:
-            print("[LLM.get_logits] instructions count: "
-                  f"{len(instructions)}")
-        print(f"[LLM.get_logits] prompt token count: {len(tokens)}")
-        print(f"[LLM.get_logits] full input token count: {len(full_input)}")
-        print("[LLM.get_logits] full decoded input: "
-              f"{self.encoder.decode(full_input)!r}")
         logits = self.llm.get_logits_from_input_ids(full_input)
         if mask:
             logits = self._apply_mask(mask, logits)
-            print("[LLM.get_logits] mask applied to logits")
 
         return logits
 

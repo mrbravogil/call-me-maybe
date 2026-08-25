@@ -5,3 +5,4 @@ data_*/
 .envrc
 .mypy_cache/
 .env
+.atl/
