@@ -30,28 +30,28 @@ class LLM(BaseModel):
                    tokens: list[int],
                    mask: set[int] | None = None) -> int:
         """Returns the next token for the provided tokens."""
-        print("\n[LLM.next_token] called")
-        print(f"[LLM.next_token] input token count: {len(tokens)}")
-        print("[LLM.next_token] decoded input: "
-              f"{self.encoder.decode(tokens)!r}")
-        if mask:
-            decoded_mask = []
-            for token_id in sorted(mask):
-                try:
-                    decoded_mask.append((token_id,
-                                         self.encoder.decode([token_id])))
-                except Exception:
-                    decoded_mask.append((token_id, "<decode-error>"))
-            print(f"[LLM.next_token] allowed tokens: {decoded_mask}")
+        # print("\n[LLM.next_token] called")
+        # print(f"[LLM.next_token] input token count: {len(tokens)}")
+        # print("[LLM.next_token] decoded input: "
+        #       f"{self.encoder.decode(tokens)!r}")
+        # if mask:
+        #     decoded_mask = []
+        #     for token_id in sorted(mask):
+        #         try:
+        #             decoded_mask.append((token_id,
+        #                                  self.encoder.decode([token_id])))
+        #         except Exception:
+        #             decoded_mask.append((token_id, "<decode-error>"))
+        #     print(f"[LLM.next_token] allowed tokens: {decoded_mask}")
 
         logits = self.get_logits(tokens, mask)
         selected_token = int(np.argmax(logits))
-        try:
-            decoded_next = self.encoder.decode([selected_token])
-        except Exception:
-            decoded_next = "<decode-error>"
-        print(f"[LLM.next_token] selected token id: {selected_token}")
-        print(f"[LLM.next_token] selected token text: {decoded_next!r}")
+        # try:
+        #     decoded_next = self.encoder.decode([selected_token])
+        # except Exception:
+        #     decoded_next = "<decode-error>"
+        # print(f"[LLM.next_token] selected token id: {selected_token}")
+        # print(f"[LLM.next_token] selected token text: {decoded_next!r}")
         return selected_token
 
     def next_option(

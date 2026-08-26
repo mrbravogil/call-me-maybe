@@ -71,8 +71,9 @@ if __name__ == "__main__":
             output.write("[\n")
             for i, p in enumerate(prompts):
                 prompt_start = time.time()
-                print(f"📓'{p}'...")
+                print(f"\n📓'{p}'...")
                 result = cmm.process_prompt(p)
+                print(result)
                 prompt_end = time.time()
                 print(f"⏱️ Prompt time: {prompt_end - prompt_start:.2f}s")
                 if i < len(prompts) - 1:
@@ -82,7 +83,7 @@ if __name__ == "__main__":
             output.write("]")
             processing_end = time.time()
             print("⏱️ Prompt processing total: "
-                  f"{processing_end - processing_start:.2f}s")
+                  f"{int((processing_end - processing_start)/60)}s")
         end = time.time()
 
     except FileNotFoundError as e:

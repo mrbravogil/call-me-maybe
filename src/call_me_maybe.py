@@ -249,7 +249,6 @@ class CallMeMaybe(BaseModel):
         tokens += self.encoder.encode('}')
         raw_output: str = self.encoder.decode(tokens)
         json_output: str = raw_output[raw_output.find('{"name":'):]
-        print("\n" + json_output)
         try:
             output_func: dict[str, Any] = json.loads(json_output)
         except json.JSONDecodeError:
