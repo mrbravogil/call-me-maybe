@@ -26,7 +26,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def create_encoder(vocab_path: str) -> Encoder:
-    with open(vocab_path, 'r') as f:
+    with open(vocab_path, 'r', encoding='utf-8') as f:
         tokens = json.load(f)
     return Encoder(tokens)
 
@@ -62,12 +62,12 @@ if __name__ == "__main__":
         print(f"⏱️ App wiring: {wiring_end - wiring_start:.2f}s")
 
         prompts: list[str] = []
-        with open(args.input, 'r') as f:
+        with open(args.input, 'r', encoding='utf-8') as f:
             prompts = [p['prompt'] for p in json.load(f)]
         os.makedirs(os.path.dirname(args.output), exist_ok=True)
         print("\nREQUEST: Processing...")
         processing_start = time.time()
-        with open(args.output, 'w') as output:
+        with open(args.output, 'w', encoding='utf-8') as output:
             output.write("[\n")
             for i, p in enumerate(prompts):
                 prompt_start = time.time()

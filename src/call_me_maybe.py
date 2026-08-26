@@ -37,7 +37,7 @@ class CallMeMaybe(BaseModel):
     def __init__(self, llm: LLM, func_definitions: str) -> None:
         encoder = llm.encoder
         functions = {}
-        with open(func_definitions, 'r') as f:
+        with open(func_definitions, 'r', encoding='utf-8') as f:
             for func in json.load(f):
                 functions[func['name']] = FunctionDefinition(func,
                                                              encoder)
