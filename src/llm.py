@@ -30,28 +30,8 @@ class LLM(BaseModel):
                    tokens: list[int],
                    mask: set[int] | None = None) -> int:
         """Returns the next token for the provided tokens."""
-        # print("\n[LLM.next_token] called")
-        # print(f"[LLM.next_token] input token count: {len(tokens)}")
-        # print("[LLM.next_token] decoded input: "
-        #       f"{self.encoder.decode(tokens)!r}")
-        # if mask:
-        #     decoded_mask = []
-        #     for token_id in sorted(mask):
-        #         try:
-        #             decoded_mask.append((token_id,
-        #                                  self.encoder.decode([token_id])))
-        #         except Exception:
-        #             decoded_mask.append((token_id, "<decode-error>"))
-        #     print(f"[LLM.next_token] allowed tokens: {decoded_mask}")
-
         logits = self.get_logits(tokens, mask)
         selected_token = int(np.argmax(logits))
-        # try:
-        #     decoded_next = self.encoder.decode([selected_token])
-        # except Exception:
-        #     decoded_next = "<decode-error>"
-        # print(f"[LLM.next_token] selected token id: {selected_token}")
-        # print(f"[LLM.next_token] selected token text: {decoded_next!r}")
         return selected_token
 
     def next_option(
@@ -69,7 +49,7 @@ class LLM(BaseModel):
         current_tokens = tokens[:]
 
         while True:
-            if len(candidates) == 1 and len(best_option) == len(candidates):
+            if len(candidates) == 1 and len(best_option) == len(candidates[0]):
                 return candidates[0]
 
             valid_option = [opt for opt in candidates
@@ -108,49 +88,6 @@ class LLM(BaseModel):
                 if len(opt) >= len(best_option)
                 and opt[:len(best_option)] == best_option
             ]
-
-    def score_options(
-            self,
-            tokens: list[int],
-            options: dict[str, list[int]]
-    ) -> str:
-        """Return the label of the highest-scoring candidate option."""
-        if not options:
-            raise ValueError("LLM.score_options(): options cannot be empty.")
-
-        best_label: str | None = None
-        best_score: float = -float("inf")
-
-        for label, option in options.items():
-            score = self._score_option(tokens, option)
-            if score > best_score:
-                best_score = score
-                best_label = label
-
-        if best_label is None:
-            raise ValueError("LLM.score_options(): no option could be scored.")
-
-        return best_label
-
-    def _score_option(self,
-                      tokens: list[int],
-                      options: list[int]) -> float:
-        """Score one full candidate by cumulative log-probability."""
-        score: float = 0.0
-        current_context = tokens.copy()
-
-        for token in options:
-            logits = np.asarray(self.get_logits(current_context))
-
-            if not 0 <= token < len(logits):
-                return -float('inf')
-
-            logits = logits - np.max(logits)
-            log_probs = logits - np.log(np.sum(np.exp(logits)))
-            score += float(log_probs[token])
-            current_context.append(token)
-
-        return score
 
     def get_logits(self,
                    tokens: list[int],

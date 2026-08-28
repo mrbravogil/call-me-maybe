@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+from pydantic import ValidationError
 from dotenv import load_dotenv
 
 from src.encoder import Encoder
@@ -71,6 +72,8 @@ if __name__ == "__main__":
             output.write("[\n")
             for i, p in enumerate(prompts):
                 prompt_start = time.time()
+                if len(p.strip()) < 1:
+                    raise ValueError(f"Invalid prompt =  '{p}'")
                 print(f"\n📓'{p}'...")
                 result = cmm.process_prompt(p)
                 print(result)
@@ -85,6 +88,9 @@ if __name__ == "__main__":
             print("⏱️ Prompt processing total: "
                   f"{int((processing_end - processing_start)/60)}s")
         end = time.time()
+        print(f"Run: {int((end-start)/60)} minutes")
+        print(f"⏱️ Total run: {end - start:.2f}s")
+        print(f"Run: {int((end-start)/60)} minutes")
 
     except FileNotFoundError as e:
         print(f"File not found: {e.filename}")
@@ -96,11 +102,12 @@ if __name__ == "__main__":
         print(f"Error decoding JSON: {e.msg}" +
               f"at line {e.lineno} column {e.colno}")
         sys.exit(1)
+    except ValidationError as e:
+        print("Validation error:")
+        print(e.errors())
+        sys.exit(1)
     except Exception as e:
         print(f"An unexpected error ocurred: {str(e)}")
         sys.exit(1)
     finally:
-        print(f"Run: {int((end-start)/60)} minutes")
-        print(f"⏱️ Total run: {end - start:.2f}s")
-        print(f"Run: {int((end-start)/60)} minutes")
         print("⚙️ Programme finished...")

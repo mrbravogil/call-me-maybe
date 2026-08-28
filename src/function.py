@@ -61,6 +61,37 @@ class FunctionDefinition(BaseModel):
             }
         })
 
+    @model_validator(mode="after")
+    def validate_function(self) -> Self:
+        if not self.name.strip():
+            raise ValueError("name cannot be empty")
+
+        if not self.description.strip():
+            raise ValueError("description cannot be empty")
+
+        if not self.params:
+            raise ValueError("parameters cannot be empty")
+
+        for name, type in self.params.items():
+            if not name.strip():
+                raise ValueError("parameter name cannot be empty")
+            if not type:
+                raise ValueError(f"parameter '{name}' cannot be empty")
+            if not isinstance(type, dict):
+                raise ValueError(f"parameter '{name}' must be a dict")
+
+            p_type = type.get("type")
+            if not isinstance(p_type, str):
+                raise ValueError(
+                    f"parameter '{name}' must have a valid str format"
+                )
+            if not p_type:
+                raise ValueError(
+                    f"parameter '{name}' must have a non-empty type"
+                )
+
+        return self
+
 
 class FunctionResponse(BaseModel):
     """Pydantic model representing a generated function call result."""
