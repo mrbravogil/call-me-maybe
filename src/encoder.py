@@ -16,7 +16,7 @@ class Encoder(BaseModel):
 
     def __init__(self, tokens: dict[str, int]) -> None:
         """
-        ENCODER class constructor. It builds the eNCODER's
+        Encoder class constructor. It builds the Encoders's
         trie and vocab.
         """
         max_token_id = max(tokens.values())

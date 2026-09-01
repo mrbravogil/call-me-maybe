@@ -10,6 +10,7 @@ from src.encoder import Encoder
 
 
 def parse_args() -> argparse.Namespace:
+    """Cli argument parser. Sets default args."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--functions_definition',
@@ -27,6 +28,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def create_encoder(vocab_path: str) -> Encoder:
+    """
+    Builds the app's Encoder by adding the model's vocabulary.
+    This vocabulary will later serve to tokanize the user's
+    prompt.
+    """
     with open(vocab_path, 'r', encoding='utf-8') as f:
         tokens = json.load(f)
     return Encoder(tokens)

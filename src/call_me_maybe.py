@@ -35,6 +35,9 @@ class CallMeMaybe(BaseModel):
     t_instructions_suffix: list[int]
 
     def __init__(self, llm: LLM, func_definitions: str) -> None:
+        """
+        CallMeMaybe class constructor. It builds the Call Me Maybe app.
+        """
         encoder = llm.encoder
         functions = {}
         with open(func_definitions, 'r', encoding='utf-8') as f:
@@ -79,33 +82,23 @@ class CallMeMaybe(BaseModel):
         instructions.extend(self.t_instructions_suffix)
         self.llm.set_instructions(instructions)
 
-    def regex_pattern(self, text: str) -> list[int]:
-        """Returns a regex pattern as a list of tokens."""
-
-        words = {w.strip('\'\".,!?').lower() for w in text.split()}
-        for k, p in REGEX_MAPPING:
-            if words & set(k):
-                return self.encoder.encode(p)
-        is_str = re.search(r"['\"](\w+)['\"]", text)
-        if is_str:
-            return self.encoder.encode(is_str.group(1))
-        return self.encoder.encode(r'\w+')
-
     @staticmethod
     def _quoted_strings(text: str) -> list[str]:
+        """Returns quoted string within the prompt text."""
         return re.findall(r"[\"']([^\"']+)[\"']", text)
 
     @staticmethod
     def _number_value(text: str) -> int | float:
+        """Returns numbers within the prompt text."""
         if re.fullmatch(r'-?\d+', text):
             return int(text)
         return float(text)
 
-    def _extract_substitute_args(self,
-                                 prompt: str,
-                                 quoted_strings: list[str]) -> dict[str, str]:
-        lower_prompt = prompt.lower()
-        regex = ''
+    @staticmethod
+    def _regex_value(text: str) -> str:
+        """Returns the functions regex pattern."""
+        regex: str = ""
+        lower_prompt = text.lower()
 
         if 'number' in lower_prompt:
             regex = r'\d+'
@@ -123,7 +116,17 @@ class CallMeMaybe(BaseModel):
             regex = r'[^\w\s]'
         elif 'alphanumeric' in lower_prompt:
             regex = r'\w+'
-        elif quoted_strings:
+
+        return regex
+
+    def _extract_regex_args(self,
+                            prompt: str,
+                            quoted_strings: list[str]) -> dict[str, str]:
+        """Returns regex function arguments"""
+
+        regex = self._regex_value(prompt)
+
+        if quoted_strings:
             regex = quoted_strings[0]
 
         if len(quoted_strings) >= 3:
@@ -158,6 +161,8 @@ class CallMeMaybe(BaseModel):
         func: FunctionDefinition,
         prompt: str,
     ) -> dict[str, Any]:
+        """"Returns the arguments depending on the chose function."""
+
         quoted_strings = self._quoted_strings(prompt)
         numbers = re.findall(r'[+-]?(?:\d+\.\d+|\d+|\.\d+)', prompt)
         arguments: dict[str, Any] = {}
@@ -189,8 +194,8 @@ class CallMeMaybe(BaseModel):
                     value = match.group(1) if match else prompt
                 arguments[arg_name] = value.strip().strip('.!?')
             elif func.name == 'fn_substitute_string_with_regex':
-                substitute_args = self._extract_substitute_args(prompt,
-                                                                quoted_strings)
+                substitute_args = self._extract_regex_args(prompt,
+                                                           quoted_strings)
                 arguments[arg_name] = substitute_args[arg_name]
             else:
                 value = (
@@ -230,6 +235,7 @@ class CallMeMaybe(BaseModel):
         return tokens
 
     def process_prompt(self, prompt: str) -> str:
+        """Manages the model call and processes its response."""
         original_prompt = prompt
         prompt = prompt.replace('\\', '\\\\').replace('"', '\\"')
         text: str = (
