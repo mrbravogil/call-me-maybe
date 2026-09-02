@@ -301,7 +301,7 @@ class CallMeMaybe(BaseModel):
             self,
             tokens: list[int]) -> tuple[list[int], dict[str, Any]]:
         """Generates one balanced JSON object from the current token stream."""
-        generated: list[int] = self.encoder.encode('{')
+        generated: list[int] = []
         text: str = "{"
         depth = 1
         in_string = False
@@ -312,7 +312,7 @@ class CallMeMaybe(BaseModel):
             next_token = self.llm.next_token(tokens + generated)
             generated.append(next_token)
             token_text = self.encoder.decode([next_token])
-            text = token_text
+            text += token_text
 
             for c in token_text:
                 if escaped:
@@ -335,7 +335,16 @@ class CallMeMaybe(BaseModel):
                         raise ValueError('[decode_balanced_json] '
                                          'invalid JSON balance.')
                     if started and depth == 0:
-                        return generated, json.loads(text)
+                        print(f'[decode_balanced_json] json_text: {text!r}')
+                        index: int = text.find('{')
+                        if index == -1:
+                            raise ValueError('[decode_balanced_json] JSON '
+                                             'object start not found.')
+                        json_text: str = text[index:]
+                        print(f'[decode_balanced_json] raw_text: {text!r}')
+                        print('[decode_balanced_json] json_text: '
+                              f'{json_text!r}')
+                        return generated, json.loads(json_text)
 
         raise ValueError('[decode_balaced_json] could not decode a '
                          'complete JSON object.')
@@ -363,15 +372,19 @@ class CallMeMaybe(BaseModel):
         """Resolves arguments using LLM first, then heuristic fallback."""
         try:
             arguments = self._generate_arguments_with_llm(func, prompt)
+            if 'arguments' in arguments and isinstance(arguments['arguments'], dict):
+                arguments = arguments['arguments']
             print(f'[resolve_arguments] args: {arguments}')
             return self._validate_arguments(func, arguments)
-        except Exception:
+        except Exception as e:
+            print(f'[resolve_arguments] llm_failed: {type(e).__name__}: {e}')
             fallback_arguments = self._infer_arguments(func, prompt)
             print(f'[resolve_arguments] fallback_args: {fallback_arguments}')
             return self._validate_arguments(func, fallback_arguments)
 
     def process_prompt(self, prompt: str) -> str:
         """Manages the model call and processes its response."""
+        self.set_instructions()
         original_prompt = prompt
         prompt = prompt.replace('\\', '\\\\').replace('"', '\\"')
         text: str = (
@@ -388,6 +401,7 @@ class CallMeMaybe(BaseModel):
         func = self.functions[self.encoder.decode(func_name)]
         print(f'[process_prompt] func.name: {func}')
         tokens += func.t_name
+        self.set_instructions(func)
         arguments = self._resolve_arguments(func, original_prompt)
         tokens += self.encoder.encode('", "arguments":'
                                       f' {json.dumps(arguments)}')
