@@ -326,12 +326,12 @@ class CallMeMaybe(BaseModel):
         tokens = self.encoder.encode(text)
 
         
-    def resolve_arguments(self, func: FunctionDefinition, prompt: str) -> dict[str, Any]:
+    def _resolve_arguments(self, func: FunctionDefinition, prompt: str) -> dict[str, Any]:
        """Resolves arguments using LLM first, then heuristic fallback."""
-        try:
+       try:
            arguments = self._generate_arguments_with_llm(func, prompt)
            self._validate_arguments(func, arguments)
-        except:
+       except:
            arguments = self._infer_arguments(func, prompt)
            self._validate_arguments(func, arguments)
 
@@ -353,19 +353,12 @@ class CallMeMaybe(BaseModel):
         func_name = self.llm.next_option(tokens, func_names)
         func = self.functions[self.encoder.decode(func_name)]
         tokens += func.t_name
-        tokens += self.encoder.encode('", "arguments": {')
-        self.set_instructions(func)
-        tokens += self.add_args(func, tokens, prompt)
-        tokens += self.encoder.encode('}')
-        raw_output: str = self.encoder.decode(tokens)
-        json_output: str = raw_output[raw_output.find('{"name":'):]
-        try:
-            output_func: dict[str, Any] = json.loads(json_output)
-        except json.JSONDecodeError:
-            output_func = {
-                'name': func.name,
-                'arguments': self._infer_arguments(func, original_prompt),
-            }
+        arguments = self._resolve_arguments(func, original_prompt)
+        output_func = {
+            'name': func.name,
+            'arguments': arguments,
+        }
+        tokens += self.encoder.encode(f'", "arguments": {json.dumps(arguments)}')
         func_response = FunctionResponse(prompt=prompt,
                                          name=output_func['name'],
                                          parameters=output_func['arguments'])
