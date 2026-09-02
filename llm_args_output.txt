@@ -1,0 +1,125 @@
+ make run                                                                        zsh   96  14:39:49 
+mkdir -p data/output
+uv run python -m src \
+	--functions_definition data/input/functions_definition.json \
+	--input data/input/function_calling_tests.json \
+	--output data/output/function_calls.json
+
+⚙️ ⚙️ ⚙️ CALL ME MAYBE⚙️ ⚙️ ⚙️
+Importing dependencies...
+
+😃 Calling QWEN 0.6b...
+Loading weights: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 311/311 [00:07<00:00, 43.85it/s]
+✅QWEN 0.6b...
+
+ENCODER:
+🛠️ Building...
+✅Created...
+
+LLM:
+🛠️ Building...
+✅Created...
+⏱️ Model load: 24.44s
+⏱️ Encoder build: 4.22s
+⏱️ App wiring: 0.01s
+
+REQUEST: Processing...
+
+📓'What is the sum of 2 and 3?'...
+[decode_balanced_json] json_text: '{ "arguments": { "a": 2, "b": 3 } }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "a": 2, "b": 3 } }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "a": 2, "b": 3 } }\n'
+[resolve_arguments] args: {'a': 2, 'b': 3}
+{"prompt": "What is the sum of 2 and 3?", "name": "fn_add_numbers", "parameters": {"a": 2.0, "b": 3.0}}
+⏱️ Prompt time: 110.19s
+
+📓'What is the sum of 265.0 and 345?'...
+[decode_balanced_json] json_text: '{ "arguments": { "a": 265.0, "b": 345 } }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "a": 265.0, "b": 345 } }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "a": 265.0, "b": 345 } }\n'
+[resolve_arguments] args: {'a': 265.0, 'b': 345}
+{"prompt": "What is the sum of 265.0 and 345?", "name": "fn_add_numbers", "parameters": {"a": 265.0, "b": 345.0}}
+⏱️ Prompt time: 138.63s
+
+📓'Greet shrek'...
+[decode_balanced_json] json_text: '{ "arguments": { "name": "shrek" } }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "name": "shrek" } }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "name": "shrek" } }\n'
+[resolve_arguments] args: {'name': 'shrek'}
+{"prompt": "Greet shrek", "name": "fn_greet", "parameters": {"name": "shrek"}}
+⏱️ Prompt time: 90.76s
+
+📓'Greet john'...
+[decode_balanced_json] json_text: '{ "arguments": { "name": "john" } }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "name": "john" } }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "name": "john" } }\n'
+[resolve_arguments] args: {'name': 'john'}
+{"prompt": "Greet john", "name": "fn_greet", "parameters": {"name": "john"}}
+⏱️ Prompt time: 85.20s
+
+📓'Reverse the string 'hello''...
+[decode_balanced_json] json_text: '{ "arguments": { "name": "hello" } }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "name": "hello" } }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "name": "hello" } }\n'
+[resolve_arguments] args: {'name': 'hello'}
+[resolve_arguments] llm_failed: ValueError: [validate_arguments] unexpected arguments: ['name'].
+[resolve_arguments] fallback_args: {'s': 'hello'}
+{"prompt": "Reverse the string 'hello'", "name": "fn_reverse_string", "parameters": {"s": "hello"}}
+⏱️ Prompt time: 78.41s
+
+📓'Reverse the string 'world''...
+[decode_balanced_json] json_text: '{ "arguments": { "name": "world" } }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "name": "world" } }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "name": "world" } }\n'
+[resolve_arguments] args: {'name': 'world'}
+[resolve_arguments] llm_failed: ValueError: [validate_arguments] unexpected arguments: ['name'].
+[resolve_arguments] fallback_args: {'s': 'world'}
+{"prompt": "Reverse the string 'world'", "name": "fn_reverse_string", "parameters": {"s": "world"}}
+⏱️ Prompt time: 75.31s
+
+📓'What is the square root of 16?'...
+[decode_balanced_json] json_text: '{ "arguments": { "a": 16 } }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "a": 16 } }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "a": 16 } }\n'
+[resolve_arguments] args: {'a': 16}
+{"prompt": "What is the square root of 16?", "name": "fn_get_square_root", "parameters": {"a": 16.0}}
+⏱️ Prompt time: 85.81s
+
+📓'Calculate the square root of 144'...
+[decode_balanced_json] json_text: '{ "arguments": { "a": 144 } }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "a": 144 } }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "a": 144 } }\n'
+[resolve_arguments] args: {'a': 144}
+{"prompt": "Calculate the square root of 144", "name": "fn_get_square_root", "parameters": {"a": 144.0}}
+⏱️ Prompt time: 88.35s
+
+📓'Replace all numbers in "Hello 34 I'm 233 years old" with NUMBERS'...
+[decode_balanced_json] json_text: '{ "arguments": { "source_string": "Hello 34 I\'m 233 years old", "regex": "([0-9]+)", "replacement": "NUMBER" } }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "source_string": "Hello 34 I\'m 233 years old", "regex": "([0-9]+)", "replacement": "NUMBER" } }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "source_string": "Hello 34 I\'m 233 years old", "regex": "([0-9]+)", "replacement": "NUMBER" } }\n'
+[resolve_arguments] args: {'source_string': "Hello 34 I'm 233 years old", 'regex': '([0-9]+)', 'replacement': 'NUMBER'}
+{"prompt": "Replace all numbers in \\\"Hello 34 I'm 233 years old\\\" with NUMBERS", "name": "fn_substitute_string_with_regex", "parameters": {"source_string": "Hello 34 I'm 233 years old", "regex": "([0-9]+)", "replacement": "NUMBER"}}
+⏱️ Prompt time: 273.87s
+
+📓'Replace all vowels in 'Programming is fun' with asterisks'...
+[decode_balanced_json] json_text: '{ "arguments": { "source_string": "Programming is fun", "regex": "aeiou", "replacement": "*"} }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "source_string": "Programming is fun", "regex": "aeiou", "replacement": "*"} }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "source_string": "Programming is fun", "regex": "aeiou", "replacement": "*"} }\n'
+[resolve_arguments] args: {'source_string': 'Programming is fun', 'regex': 'aeiou', 'replacement': '*'}
+{"prompt": "Replace all vowels in 'Programming is fun' with asterisks", "name": "fn_substitute_string_with_regex", "parameters": {"source_string": "Programming is fun", "regex": "aeiou", "replacement": "*"}}
+⏱️ Prompt time: 199.39s
+
+📓'Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat''...
+[decode_balanced_json] json_text: '{ "arguments": { "name": "dog" } }\n'
+[decode_balanced_json] raw_text: '{ "arguments": { "name": "dog" } }\n'
+[decode_balanced_json] json_text: '{ "arguments": { "name": "dog" } }\n'
+[resolve_arguments] args: {'name': 'dog'}
+[resolve_arguments] llm_failed: ValueError: [validate_arguments] unexpected arguments: ['name'].
+[resolve_arguments] fallback_args: {'source_string': 'The cat sat on the mat with another cat', 'regex': 'cat', 'replacement': 'dog'}
+{"prompt": "Substitute the word 'cat' with 'dog' in 'The cat sat on the mat with another cat'", "name": "fn_substitute_string_with_regex", "parameters": {"source_string": "The cat sat on the mat with another cat", "regex": "cat", "replacement": "dog"}}
+⏱️ Prompt time: 133.27s
+⏱️ Prompt processing total: 22s
+Run: 23 minutes
+⏱️ Total run: 1387.86s
+Run: 23 minutes
+⚙️ Programme finished...
