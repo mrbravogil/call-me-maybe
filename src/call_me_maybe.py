@@ -404,7 +404,6 @@ class CallMeMaybe(BaseModel):
         func_names = [f.t_name for f in self.functions.values()]
         func_name = self.llm.next_option(tokens, func_names)
         func = self.functions[self.encoder.decode(func_name)]
-        print(f'[process_prompt] func.name: {func}')
         tokens += func.t_name
         self.set_instructions(func)
         arguments = self._resolve_arguments(func, original_prompt)
