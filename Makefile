@@ -1,9 +1,9 @@
 run:
 	mkdir -p data/output
 	uv run python -m src \
-		--functions_definition data/input/functions_definition2.json \
-		--input data/input/function_calling_tests2.json \
-		--output data/output/function_calls2.json
+		--functions_definition data/input/functions_definition.json \
+		--input data/input/function_calling_tests.json \
+		--output data/output/function_calls.json
 
 install:
 	uv sync --no-install-project

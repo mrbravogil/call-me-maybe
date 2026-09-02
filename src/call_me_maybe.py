@@ -227,12 +227,30 @@ class CallMeMaybe(BaseModel):
         """Casts a value to the expected function parameter type."""
         if type == 'string':
             return str(value)
-        if type == 'number' or type == 'integer':
-            if not isinstance(value, bool):
-                float(value)
+        if type == 'number':
+            if isinstance(value, bool):
+                raise ValueError(f"cannot cast {value!r} to number.")
+            if isinstance(value, (int, float)):
+                return float(value)
             if isinstance(value, str):
-                return self._number_value(value)
-            raise ValueError(f"cannot cast {value!r} to float.")
+                return float(value)
+            raise ValueError(f"cannot cast {value!r} to number.")
+
+        if type == 'integer':
+            if isinstance(value, bool):
+                raise ValueError(f"cannot cast {value!r} to integer.")
+            if isinstance(value, int):
+                return value
+            if isinstance(value, float):
+                if value.is_integer():
+                    return int(value)
+                raise ValueError(f"cannot cast {value!r} to integer.")
+            if isinstance(value, str):
+                parsed = float(value)
+                if parsed.is_integer():
+                    return int(parsed)
+                raise ValueError(f"cannot cast {value!r} to integer.")
+            raise ValueError(f"cannot cast {value!r} to integer.")
 
         if type == 'boolean':
             if isinstance(value, bool):
@@ -283,24 +301,28 @@ class CallMeMaybe(BaseModel):
             self,
             tokens: list[int]) -> tuple[list[int], dict[str, Any]]:
         """Generates one balanced JSON object from the current token stream."""
-        generated: list[int] = []
-        text: str = ""
-        depth = 0
+        generated: list[int] = self.encoder.encode('{')
+        text: str = "{"
+        depth = 1
         in_string = False
         escaped = False
-        started = False
+        started = True
 
-        for _ in range(256):
+        for _ in range(128):
             next_token = self.llm.next_token(tokens + generated)
             generated.append(next_token)
-            text = self.encoder.decode(generated)
+            token_text = self.encoder.decode([next_token])
+            text = token_text
 
-            for c in self.encoder.decode([next_token]):
+            for c in token_text:
                 if escaped:
                     escaped = False
                     continue
                 if c == '\\' and in_string:
                     escaped = True
+                    continue
+                if c == '"':
+                    in_string = not in_string
                     continue
                 if in_string:
                     continue
@@ -308,7 +330,10 @@ class CallMeMaybe(BaseModel):
                     started = True
                     depth += 1
                 elif c == '}':
-                    depth -= -1
+                    depth -= 1
+                    if depth < 0:
+                        raise ValueError('[decode_balanced_json] '
+                                         'invalid JSON balance.')
                     if started and depth == 0:
                         return generated, json.loads(text)
 
@@ -326,7 +351,8 @@ class CallMeMaybe(BaseModel):
                     '<|im_start|>user\n' +
                     prompt +
                     '\n<|im_end|>\n'
-                    '<|im_start|>assistant\n')
+                    '<|im_start|>assistant\n'
+                    '{')
         tokens = self.encoder.encode(text)
         _, arguments = self._decode_balanced_json(tokens)
         return arguments
@@ -337,10 +363,12 @@ class CallMeMaybe(BaseModel):
         """Resolves arguments using LLM first, then heuristic fallback."""
         try:
             arguments = self._generate_arguments_with_llm(func, prompt)
-            self._validate_arguments(func, arguments)
+            print(f'[resolve_arguments] args: {arguments}')
+            return self._validate_arguments(func, arguments)
         except Exception:
             fallback_arguments = self._infer_arguments(func, prompt)
-            self._validate_arguments(func, fallback_arguments)
+            print(f'[resolve_arguments] fallback_args: {fallback_arguments}')
+            return self._validate_arguments(func, fallback_arguments)
 
     def process_prompt(self, prompt: str) -> str:
         """Manages the model call and processes its response."""
@@ -358,15 +386,13 @@ class CallMeMaybe(BaseModel):
         func_names = [f.t_name for f in self.functions.values()]
         func_name = self.llm.next_option(tokens, func_names)
         func = self.functions[self.encoder.decode(func_name)]
+        print(f'[process_prompt] func.name: {func}')
         tokens += func.t_name
         arguments = self._resolve_arguments(func, original_prompt)
-        output_func = {
-            'name': func.name,
-            'arguments': arguments,
-        }
         tokens += self.encoder.encode('", "arguments":'
                                       f' {json.dumps(arguments)}')
+
         func_response = FunctionResponse(prompt=prompt,
-                                         name=output_func['name'],
-                                         parameters=output_func['arguments'])
+                                         name=func.name,
+                                         parameters=arguments)
         return func_response.json_schema()
