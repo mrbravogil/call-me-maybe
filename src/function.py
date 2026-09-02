@@ -13,7 +13,8 @@ class FunctionDefinition(BaseModel):
     description: str = Field(...)
     t_description: list[int]
     params: dict[str, Any] = Field(...)
-    t_params: dict[str, list[int]]
+    params_schema: dict[str, dict[str, Any]] = Field(...)
+    required_params: list[str]
     t_definition: list[int]
 
     def __init__(self,
@@ -21,10 +22,9 @@ class FunctionDefinition(BaseModel):
                  encoder: Encoder):
         name = function['name']
         description = function['description']
-        params = {k: v['type']
-                  for k, v in function['parameters'].items()}
-        t_params = {k: encoder.encode(v['type'])
-                    for k, v in function['parameters'].items()}
+        params_schema = function['parameters']
+        params = {k: v['type'] for k, v in params_schema.items()}
+        required_params = list(params_schema.keys())
 
         t_definition = encoder.encode(json.dumps({
             "name": name,
@@ -32,10 +32,10 @@ class FunctionDefinition(BaseModel):
             "parameters": {
                 "type": "object",
                 "properties": {
-                    k: {"type": v}
-                    for k, v in params.items()
+                    k: v
+                    for k, v in params_schema.items()
                 },
-                "required": list(params.keys())
+                "required": required_params
             }
         }))
 
@@ -43,8 +43,9 @@ class FunctionDefinition(BaseModel):
                          t_name=encoder.encode(name),
                          description=description,
                          t_description=encoder.encode(description),
+                         params_schema=params_schema,
                          params=params,
-                         t_params=t_params,
+                         required_params=required_params,
                          t_definition=t_definition)
 
     def _json_schema(self) -> str:
@@ -75,20 +76,13 @@ class FunctionDefinition(BaseModel):
         for name, type in self.params.items():
             if not name.strip():
                 raise ValueError("parameter name cannot be empty")
-            if not type:
+            if not isinstance(type, str):
                 raise ValueError(f"parameter '{name}' cannot be empty")
-            if not isinstance(type, dict):
-                raise ValueError(f"parameter '{name}' must be a dict")
 
-            p_type = type.get("type")
-            if not isinstance(p_type, str):
-                raise ValueError(
-                    f"parameter '{name}' must have a valid str format"
-                )
-            if not p_type:
-                raise ValueError(
-                    f"parameter '{name}' must have a non-empty type"
-                )
+            schema = self.params_schema.get(name)
+            if not isinstance(schema, dict):
+                raise ValueError(f"parameter '{name} must "
+                                 "have a valid schema.")
 
         return self
 
@@ -107,7 +101,7 @@ class FunctionResponse(BaseModel):
     def validate_add_numbers(self) -> Self:
         if self.name == "fn_add_numbers" or self.name == "fn_get_square_root":
             for param in self.parameters.values():
-                if not isinstance(param, int):
+                if not isinstance(param, (int, float)):
                     raise ValueError("All parameters of fn_add_numbers, "
                                      "fn_get_square_root "
                                      "must be numbers.")

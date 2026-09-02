@@ -82,6 +82,22 @@ class CallMeMaybe(BaseModel):
         instructions.extend(self.t_instructions_suffix)
         self.llm.set_instructions(instructions)
 
+    def set_arguments_intructions(self, func: FunctionDefinition) -> None:
+        """Updates the LLM context to generate arguments for one function."""
+        instructions: str = (
+            '<|im_start|>system\n'
+            'You are generating arguments for exactly one function.\n'
+            'Return only a valid JSON object for "arguments".\n'
+            'Do not include markdown, explanations, or extra text.\n'
+            'Use exactly the parameter names and types defined below.\n'
+            '<tools>\n'
+            )
+        instructions += self.encoder.decode(func.t_definition)
+        instructions += (
+            '\n</tools>\n<|im_end|>\n'
+        )
+        self.llm.set_instructions(instructions)
+
     @staticmethod
     def _quoted_strings(text: str) -> list[str]:
         """Returns quoted string within the prompt text."""
@@ -91,7 +107,7 @@ class CallMeMaybe(BaseModel):
     def _number_value(text: str) -> int | float:
         """Returns numbers within the prompt text."""
         if re.fullmatch(r'-?\d+', text):
-            return int(text)
+            return float(text)
         return float(text)
 
     @staticmethod
@@ -207,32 +223,118 @@ class CallMeMaybe(BaseModel):
 
         return arguments
 
-    def add_args(self,
-                 func: FunctionDefinition,
-                 tokens: list[int],
-                 text: str) -> list[int]:
-        """Generates the arguments for the function call."""
+    def _cast_argument_type(self, type: str, value: Any) -> Any:
+        """Casts a value to the expected function parameter type."""
+        if type == 'string':
+            return str(value)
+        if type == 'number' or type == 'integer':
+            if not isinstance(value, bool):
+                float(value)
+            if isinstance(value, str):
+                return self._number_value(value)
+            raise ValueError(f"cannot cast {value!r} to float.")
 
-        arguments = self._infer_arguments(func, text)
-        for i, arg_name in enumerate(func.params.keys()):
-            arg_type = func.params[arg_name]
+        if type == 'boolean':
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                lowered = value.strip().lower()
+                if lowered == 'true':
+                    return True
+                if lowered == 'false':
+                    return False
+            raise ValueError(f"cannot cast {value!r} to boolean")
 
-            if i > 0:
-                tokens += self.encoder.encode(', ')
-            tokens += self.encoder.encode(f'"{arg_name}": ')
+        return value
 
-            value = arguments[arg_name]
-            if arg_type == 'string':
-                tokens += self.encoder.encode('"')
-                tokens += self.encoder.encode(str(value))
-                tokens += self.encoder.encode('"')
-            elif arg_type == 'boolean':
-                tokens += self.encoder.encode('true' if value else 'false')
-            else:
-                tokens += self.encoder.encode(str(value))
+    def _validate_arguments(self,
+                            func: FunctionDefinition,
+                            arguments: dict[str, Any]) -> dict[str, Any]:
+        """Validates and normalizes arguments produced by the LLM."""
+        if not isinstance(arguments, dict):
+            raise ValueError('[validate_arguments] arguments must be a JSON object.')
 
-        tokens += self.encoder.encode('}\n')
-        return tokens
+        extra_keys = set(arguments.keys()) - set(func.required_params)
+        if extra_keys:
+            raise ValueError(f'[validate_arguments] unexpected arguments: {sorted(extra_keys)}.')
+
+        missing_keys = [name for name in func.required_params
+                        if name not in arguments]
+        if missing_keys:
+            raise ValueError(f'[validate_arguments] missing required arguments: {missing_keys}.')
+
+        normalized: dict[str, Any] = {}
+        for name in func.required_params:
+            type = func.params[name]
+            normalized[name] = self._cast_argument_type(type, arguments[name])
+
+        if func.name == 'fn_get_square_root':
+            first_value = next(iter(normalized.values()))
+            if first_value < 0:
+                raise ValueError('[validate_arguments] square root input canoot be negative.')
+
+        return normalized
+
+
+    def _decode_balanced_json(
+            self,
+            tokens: list[int]) -> tuple[list[int], dict[str, Any]]:
+        """Generates one balanced JSON object from the current token stream."""
+        generated: list[int] = []
+        text: str = ""
+        depth = 0
+        in_string = False
+        escaped = False
+        started = False
+
+        for _ in range(256):
+            next_token = self.llm.next_token(tokens + generated)
+            generated.append(next_token)
+            text = self.encoder.decode(generated)
+
+            for c in self.encoder.decode([next_token]):
+                if escaped:
+                    escaped = False
+                    continue
+                if c == '\\' and in_string:
+                    escaped = True
+                    continue
+                if in_string:
+                    continue
+                if c == '{':
+                    started = True
+                    depth += 1
+                elif c == '}':
+                    depth -= -1
+                    if started and depth == 0:
+                        return generated, json.loads(text)
+
+        raise ValueError('[decode_balaced_json] could not decode a complete JSON object.')
+
+    def _generate_arguments_with_llm(
+            self,
+            func: FunctionDefinition,
+            prompt: str) -> dict[str, Any]:
+
+        """Generates function arguments with LLM."""
+        self.set_arguments_intructions(func)
+        text: str = (
+                    '<|im_start|>user\n' +
+                    prompt +
+                    '\n<|im_end|>\n'
+                    '<|im_start|>assistant\n') 
+        tokens = self.encoder.encode(text)
+
+        
+    def resolve_arguments(self, func: FunctionDefinition, prompt: str) -> dict[str, Any]:
+       """Resolves arguments using LLM first, then heuristic fallback."""
+        try:
+           arguments = self._generate_arguments_with_llm(func, prompt)
+           self._validate_arguments(func, arguments)
+        except:
+           arguments = self._infer_arguments(func, prompt)
+           self._validate_arguments(func, arguments)
+
 
     def process_prompt(self, prompt: str) -> str:
         """Manages the model call and processes its response."""
