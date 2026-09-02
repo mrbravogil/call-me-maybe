@@ -252,16 +252,19 @@ class CallMeMaybe(BaseModel):
                             arguments: dict[str, Any]) -> dict[str, Any]:
         """Validates and normalizes arguments produced by the LLM."""
         if not isinstance(arguments, dict):
-            raise ValueError('[validate_arguments] arguments must be a JSON object.')
+            raise ValueError('[validate_arguments] arguments must be'
+                             ' a JSON object.')
 
         extra_keys = set(arguments.keys()) - set(func.required_params)
         if extra_keys:
-            raise ValueError(f'[validate_arguments] unexpected arguments: {sorted(extra_keys)}.')
+            raise ValueError('[validate_arguments] unexpected arguments: '
+                             f'{sorted(extra_keys)}.')
 
         missing_keys = [name for name in func.required_params
                         if name not in arguments]
         if missing_keys:
-            raise ValueError(f'[validate_arguments] missing required arguments: {missing_keys}.')
+            raise ValueError('[validate_arguments] missing required arguments:'
+                             f' {missing_keys}.')
 
         normalized: dict[str, Any] = {}
         for name in func.required_params:
@@ -271,10 +274,10 @@ class CallMeMaybe(BaseModel):
         if func.name == 'fn_get_square_root':
             first_value = next(iter(normalized.values()))
             if first_value < 0:
-                raise ValueError('[validate_arguments] square root input canoot be negative.')
+                raise ValueError('[validate_arguments] square root input'
+                                 ' canoot be negative.')
 
         return normalized
-
 
     def _decode_balanced_json(
             self,
@@ -309,7 +312,8 @@ class CallMeMaybe(BaseModel):
                     if started and depth == 0:
                         return generated, json.loads(text)
 
-        raise ValueError('[decode_balaced_json] could not decode a complete JSON object.')
+        raise ValueError('[decode_balaced_json] could not decode a '
+                         'complete JSON object.')
 
     def _generate_arguments_with_llm(
             self,
@@ -322,19 +326,21 @@ class CallMeMaybe(BaseModel):
                     '<|im_start|>user\n' +
                     prompt +
                     '\n<|im_end|>\n'
-                    '<|im_start|>assistant\n') 
+                    '<|im_start|>assistant\n')
         tokens = self.encoder.encode(text)
+        _, arguments = self._decode_balanced_json(tokens)
+        return arguments
 
-        
-    def _resolve_arguments(self, func: FunctionDefinition, prompt: str) -> dict[str, Any]:
-       """Resolves arguments using LLM first, then heuristic fallback."""
-       try:
-           arguments = self._generate_arguments_with_llm(func, prompt)
-           self._validate_arguments(func, arguments)
-       except:
-           arguments = self._infer_arguments(func, prompt)
-           self._validate_arguments(func, arguments)
-
+    def _resolve_arguments(self,
+                           func: FunctionDefinition,
+                           prompt: str) -> dict[str, Any]:
+        """Resolves arguments using LLM first, then heuristic fallback."""
+        try:
+            arguments = self._generate_arguments_with_llm(func, prompt)
+            self._validate_arguments(func, arguments)
+        except Exception:
+            fallback_arguments = self._infer_arguments(func, prompt)
+            self._validate_arguments(func, fallback_arguments)
 
     def process_prompt(self, prompt: str) -> str:
         """Manages the model call and processes its response."""
@@ -358,7 +364,8 @@ class CallMeMaybe(BaseModel):
             'name': func.name,
             'arguments': arguments,
         }
-        tokens += self.encoder.encode(f'", "arguments": {json.dumps(arguments)}')
+        tokens += self.encoder.encode('", "arguments":'
+                                      f' {json.dumps(arguments)}')
         func_response = FunctionResponse(prompt=prompt,
                                          name=output_func['name'],
                                          parameters=output_func['arguments'])
