@@ -84,49 +84,23 @@ class CallMeMaybe(BaseModel):
 
     def set_arguments_intructions(self, func: FunctionDefinition) -> None:
         """Updates the LLM context to generate arguments for one function."""
-        example_values: dict[str, Any] = {
-            "string": "abc",
-            "number": 1.0,
-            "integer": 1,
-            "boolean": True
-        }
-
-        example_output: dict[str, Any] = {
-            key: example_values.get(schema.get('type'), 'example')
-            for key, schema in func.params_schema.items()
-        }
-
-        arguments_schema = {
-            "type": "object",
-            "properties": func.params_schema,
-            "required": func.required_params,
-            "additionalProperties": False,
-        }
-
         instructions: str = (
             '<|im_start|>system\n'
-            'Extract arguments for exactly one function from '
-            'the user request.\n'
-            'Return only one JSON object for the function arguments.\n'
+            'You are extracting function arguments from the user request.\n'
+            'Return only the raw JSON object for the function arguments.\n'
             'Do not include the function name.\n'
-            'Do not wrap the result inside "arguments".\n'
-            'Use exactly the parameter names defined in the schema.\n'
-            'Do not add extra keys.\n'
-            'Do not rename keys.\n'
-            'Do not invent missing values.\n'
-            'Do not include markdown, comments, or explanations.\n'
-            'Return JSON only.\n'
-            f'Valid output example: {json.dumps(example_output)}\n'
-            'Invalid output example: {"arguments": {"name": "abc"}}\n'
-            'Invalid output example: {"name": "fn_greet", '
-            '"description": "...", '
-            '"parameters": {...}}\n'
-            '<argument_schema>\n'
-            f'{json.dumps(arguments_schema)}\n'
-            '</argument_schema>\n'
-            '<|im_end|>\n'
+            'Do not invent, rewrite, translate, or normalize values.\n'
+            'Do not include markdown, explanations, or extra text.\n'
+            'Copy argument values from the user request whenever possible.\n'
+            'If the request says "Greet shrek", '
+            'return { "arguments": { "name": "shrek" }.\n'
+            'Use exactly the parameter names and types defined below.\n'
+            '<tools>\n'
             )
-
+        instructions += self.encoder.decode(func.t_definition)
+        instructions += (
+            '\n</tools>\n<|im_end|>\n'
+        )
         self.llm.set_instructions(instructions)
 
     @staticmethod
@@ -194,13 +168,13 @@ class CallMeMaybe(BaseModel):
                 replacement = replacement_match.group(2)
             else:
                 replacement = (
-                    prompt.split(' with ', 1)[-1].strip().strip('.!?').lower()
+                    prompt.split(' with ', 1)[-1].strip().strip('.!?')
                 )
 
         return {
             'source_string': source_string,
             'regex': regex,
-            'replacement': replacement
+            'replacement': replacement,
         }
 
     def _infer_arguments(
@@ -326,10 +300,6 @@ class CallMeMaybe(BaseModel):
                 raise ValueError('[validate_arguments] square root input'
                                  ' canoot be negative.')
 
-        if func.name == 'fn_substitute_string_with_regex':
-            last_key = list(normalized.keys())[-1]
-            normalized[last_key] = normalized[last_key].lower()
-
         return normalized
 
     def _decode_balanced_json(
@@ -370,11 +340,13 @@ class CallMeMaybe(BaseModel):
                         raise ValueError('[decode_balanced_json] '
                                          'invalid JSON balance.')
                     if started and depth == 0:
+                        print(f'[decode_balanced_json] json_text: {text!r}')
                         index: int = text.find('{')
                         if index == -1:
                             raise ValueError('[decode_balanced_json] JSON '
                                              'object start not found.')
                         json_text: str = text[index:]
+                        print(f'[decode_balanced_json] raw_text: {text!r}')
                         print('[decode_balanced_json] json_text: '
                               f'{json_text!r}')
                         return generated, json.loads(json_text)
