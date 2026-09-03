@@ -83,37 +83,33 @@ class CallMeMaybe(BaseModel):
         self.llm.set_instructions(instructions)
 
     def set_arguments_intructions(self, func: FunctionDefinition) -> None:
-        """Updates the LLM context to generate arguments for one function."""
-        example_values: dict[str, Any] = {
-            "string": "abc",
-            "number": 1.0,
-            "integer": 1,
-            "boolean": True
+        schema = {
+            "type": "object",
+            "properties": func.params_schema,
+            "required": func.required_params,
+            "additionalProperties": False,
         }
 
-        example_output: dict[str, Any] = {
-            key: example_values.get(schema.get('type'), 'example')
-            for key, schema in func.params_schema.items()
-        }
-
-        instructions: str = (
-            '<|im_start|>system\n'
-            'Extract arguments for exactly one function from '
-            'the user request.\n'
-            'Return only one JSON object for the function arguments.\n'
-            'Do not include the function name.\n'
-            'Do not wrap the result inside "arguments".\n'
-            'Use exactly the parameter names defined in the schema.\n'
-            'Do not add extra keys.\n'
-            'Do not rename keys.\n'
-            'Do not invent missing values.\n'
-            'Do not include markdown, comments, or explanations.\n'
-            'Return JSON only.\n'
-            f'Example valid output: {json.dumps(example_output)}\n'
-            'Use exactly the parameter names and types defined below.\n'
-            '<|im_end|>\n'
-            )
-
+        instructions = (
+            "<|im_start|>system\n"
+            "You extract ONLY arguments for ONE selected function.\n"
+            "Return EXACTLY one JSON object and nothing else.\n"
+            "Output must match this JSON Schema exactly:\n"
+            f"{json.dumps(schema, ensure_ascii=False)}\n"
+            "Rules:\n"
+            "- Use only keys listed in 'required'.\n"
+            "- Do not add keys like name/type/required/properties/arguments.\n"
+            "- Use values copied/inferred from user text, not computed function results.\n"
+            "- Extract parameter values by COPYING spans from the user's text"
+            "do NOT transform, compute, normalize, translate, or paraphrase them. \n"
+            "Examples:\n"
+            '1. User: Greet shrek Valid: {"name":"shrek"}\n'
+            '2. User: Replace all numbers in "Hello 34 I\'m 233 years old" with NUMBERS.\n'
+            'Valid: {"source_string":"Hello 34 I\'m 233 years old",'
+            '"regex":"\\d+","replacement":"NUMBERS"}\n'
+            "- No markdown. No explanation. JSON only.\n"
+            "<|im_end|>\n"
+        )
         self.llm.set_instructions(instructions)
 
     @staticmethod
@@ -125,7 +121,7 @@ class CallMeMaybe(BaseModel):
     def _number_value(text: str) -> int | float:
         """Returns numbers within the prompt text."""
         if re.fullmatch(r'-?\d+', text):
-            return float(text)
+            return int(text)
         return float(text)
 
     @staticmethod
