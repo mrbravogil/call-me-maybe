@@ -103,6 +103,20 @@ class CallMeMaybe(BaseModel):
             "additionalProperties": False,
         }
 
+        if len(func.required_params) == 1:
+            allowed_keys_line = (
+                f'The only allowed output key is "{func.required_params[0]}".\n'
+            )
+        else:
+            allowed_keys = ', '.join(f'"{key}"' for key in func.required_params)
+            allowed_keys_line = (
+                f'The allowed output keys are exactly: {allowed_keys}.\n'
+            )
+
+        disallow_name_line = ''
+        if 'name' not in func.required_params:
+            disallow_name_line = 'The key "name" is not allowed for this function.\n'
+
         instructions: str = (
             '<|im_start|>system\n'
             'Extract arguments for exactly one function from '
@@ -111,6 +125,8 @@ class CallMeMaybe(BaseModel):
             'Do not include the function name.\n'
             'Do not wrap the result inside "arguments".\n'
             'Use exactly the parameter names defined in the schema.\n'
+            + allowed_keys_line +
+            disallow_name_line +
             'Do not add extra keys.\n'
             'Do not rename keys.\n'
             'Do not invent missing values.\n'
@@ -304,18 +320,10 @@ class CallMeMaybe(BaseModel):
             raise ValueError('[validate_arguments] arguments must be'
                              ' a JSON object.')
 
-        expected_keys = set(func.required_params)
-        received_keys = set(arguments.keys())
-        extra_keys = received_keys - expected_keys
-
+        extra_keys = set(arguments.keys()) - set(func.required_params)
         if extra_keys:
-            if len(func.required_params) == 1 and len(arguments) == 1:
-                expected_key = func.required_params[0]
-                only_value = next(iter(arguments.values()))
-                arguments = {expected_key: only_value}
-            else:
-                raise ValueError('[validate_arguments] unexpected arguments: '
-                                 f'{sorted(extra_keys)}.')
+            raise ValueError('[validate_arguments] unexpected arguments: '
+                             f'{sorted(extra_keys)}.')
 
         missing_keys = [name for name in func.required_params
                         if name not in arguments]
