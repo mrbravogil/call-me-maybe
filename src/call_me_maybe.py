@@ -113,6 +113,10 @@ class CallMeMaybe(BaseModel):
                 f'The allowed output keys are exactly: {allowed_keys}.\n'
             )
 
+        disallow_name_line = ''
+        if 'name' not in func.required_params:
+            disallow_name_line = 'The key "name" is not allowed for this function.\n'
+
         instructions: str = (
             '<|im_start|>system\n'
             'Extract arguments for exactly one function from '
@@ -122,6 +126,7 @@ class CallMeMaybe(BaseModel):
             'Do not wrap the result inside "arguments".\n'
             'Use exactly the parameter names defined in the schema.\n'
             + allowed_keys_line +
+            disallow_name_line +
             'Do not add extra keys.\n'
             'Do not rename keys.\n'
             'Do not invent missing values.\n'
