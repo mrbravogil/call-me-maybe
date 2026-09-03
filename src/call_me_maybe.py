@@ -103,20 +103,6 @@ class CallMeMaybe(BaseModel):
             "additionalProperties": False,
         }
 
-        if len(func.required_params) == 1:
-            allowed_keys_line = (
-                f'The only allowed output key is "{func.required_params[0]}".\n'
-            )
-        else:
-            allowed_keys = ', '.join(f'"{key}"' for key in func.required_params)
-            allowed_keys_line = (
-                f'The allowed output keys are exactly: {allowed_keys}.\n'
-            )
-
-        disallow_name_line = ''
-        if 'name' not in func.required_params:
-            disallow_name_line = 'The key "name" is not allowed for this function.\n'
-
         instructions: str = (
             '<|im_start|>system\n'
             'Extract arguments for exactly one function from '
@@ -125,8 +111,6 @@ class CallMeMaybe(BaseModel):
             'Do not include the function name.\n'
             'Do not wrap the result inside "arguments".\n'
             'Use exactly the parameter names defined in the schema.\n'
-            + allowed_keys_line +
-            disallow_name_line +
             'Do not add extra keys.\n'
             'Do not rename keys.\n'
             'Do not invent missing values.\n'
@@ -210,13 +194,13 @@ class CallMeMaybe(BaseModel):
                 replacement = replacement_match.group(2)
             else:
                 replacement = (
-                    prompt.split(' with ', 1)[-1].strip().strip('.!?')
+                    prompt.split(' with ', 1)[-1].strip().strip('.!?').lower()
                 )
 
         return {
             'source_string': source_string,
             'regex': regex,
-            'replacement': replacement.lower(),
+            'replacement': replacement
         }
 
     def _infer_arguments(
@@ -342,6 +326,10 @@ class CallMeMaybe(BaseModel):
                 raise ValueError('[validate_arguments] square root input'
                                  ' canoot be negative.')
 
+        if func.name == 'fn_substitute_string_with_regex':
+            last_key = list(normalized.keys())[-1]
+            normalized[last_key] = normalized[last_key].lower()
+
         return normalized
 
     def _decode_balanced_json(
@@ -382,13 +370,11 @@ class CallMeMaybe(BaseModel):
                         raise ValueError('[decode_balanced_json] '
                                          'invalid JSON balance.')
                     if started and depth == 0:
-                        print(f'[decode_balanced_json] json_text: {text!r}')
                         index: int = text.find('{')
                         if index == -1:
                             raise ValueError('[decode_balanced_json] JSON '
                                              'object start not found.')
                         json_text: str = text[index:]
-                        print(f'[decode_balanced_json] raw_text: {text!r}')
                         print('[decode_balanced_json] json_text: '
                               f'{json_text!r}')
                         return generated, json.loads(json_text)
