@@ -86,15 +86,9 @@ class CallMeMaybe(BaseModel):
         """Updates the LLM context to generate arguments for one function."""
         instructions: str = (
             '<|im_start|>system\n'
-            'You are extracting function arguments from the user request.\n'
-            'Return only the raw JSON object for the function arguments.\n'
-            'Do not include the function name.\n'
-            'Do not invent, rewrite, translate, or normalize values.\n'
-            'Copy string values from the user request when present.\n'
-            'Preserve plurality.\n'
-            'If the user says NUMBERS, return "NUMBERS", not "NUMBER".\n'
+            'You are generating arguments for exactly one function.\n'
+            'Return only a valid JSON object for "arguments".\n'
             'Do not include markdown, explanations, or extra text.\n'
-            'Copy argument values from the user request whenever possible.\n'
             'Use exactly the parameter names and types defined below.\n'
             '<tools>\n'
             )
