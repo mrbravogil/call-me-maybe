@@ -200,7 +200,7 @@ class CallMeMaybe(BaseModel):
         return {
             'source_string': source_string,
             'regex': regex,
-            'replacement': replacement,
+            'replacement': replacement.lower(),
         }
 
     def _infer_arguments(
@@ -304,10 +304,18 @@ class CallMeMaybe(BaseModel):
             raise ValueError('[validate_arguments] arguments must be'
                              ' a JSON object.')
 
-        extra_keys = set(arguments.keys()) - set(func.required_params)
+        expected_keys = set(func.required_params)
+        received_keys = set(arguments.keys())
+        extra_keys = received_keys - expected_keys
+
         if extra_keys:
-            raise ValueError('[validate_arguments] unexpected arguments: '
-                             f'{sorted(extra_keys)}.')
+            if len(func.required_params) == 1 and len(arguments) == 1:
+                expected_key = func.required_params[0]
+                only_value = next(iter(arguments.values()))
+                arguments = {expected_key: only_value}
+            else:
+                raise ValueError('[validate_arguments] unexpected arguments: '
+                                 f'{sorted(extra_keys)}.')
 
         missing_keys = [name for name in func.required_params
                         if name not in arguments]
