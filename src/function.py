@@ -62,6 +62,82 @@ class FunctionDefinition(BaseModel):
             }
         })
 
+    @staticmethod
+    def _cast_argument_type(expected_type: str, value: Any) -> Any:
+        """Casts a value to the expected function parameter type."""
+        if expected_type == 'string':
+            return str(value)
+        if expected_type == 'number':
+            if isinstance(value, bool):
+                raise ValueError(f"cannot cast {value!r} to number.")
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                return float(value)
+            raise ValueError(f"cannot cast {value!r} to number.")
+
+        if expected_type == 'integer':
+            if isinstance(value, bool):
+                raise ValueError(f"cannot cast {value!r} to integer.")
+            if isinstance(value, int):
+                return value
+            if isinstance(value, float):
+                if value.is_integer():
+                    return int(value)
+                raise ValueError(f"cannot cast {value!r} to integer.")
+            if isinstance(value, str):
+                parsed = float(value)
+                if parsed.is_integer():
+                    return int(parsed)
+                raise ValueError(f"cannot cast {value!r} to integer.")
+            raise ValueError(f"cannot cast {value!r} to integer.")
+
+        if expected_type == 'boolean':
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                lowered = value.strip().lower()
+                if lowered == 'true':
+                    return True
+                if lowered == 'false':
+                    return False
+            raise ValueError(f"cannot cast {value!r} to boolean")
+
+        return value
+
+    def validate_arguments(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Validates and normalizes arguments produced by the LLM."""
+        if not isinstance(arguments, dict):
+            raise ValueError('[validate_arguments] arguments must be'
+                             ' a JSON object.')
+
+        extra_keys = set(arguments.keys()) - set(self.required_params)
+        if extra_keys:
+            raise ValueError('[validate_arguments] unexpected arguments: '
+                             f'{sorted(extra_keys)}.')
+
+        missing_keys = [name for name in self.required_params
+                        if name not in arguments]
+        if missing_keys:
+            raise ValueError('[validate_arguments] missing required arguments:'
+                             f' {missing_keys}.')
+
+        normalized: dict[str, Any] = {}
+        for name in self.required_params:
+            expected_type = self.params[name]
+            normalized[name] = self._cast_argument_type(
+                expected_type,
+                arguments[name],
+            )
+
+        if self.name == 'fn_get_square_root':
+            first_value = next(iter(normalized.values()))
+            if first_value < 0:
+                raise ValueError('[validate_arguments] square root input'
+                                 ' cannot be negative.')
+
+        return normalized
+
     @model_validator(mode="after")
     def validate_function(self) -> Self:
         if not self.name.strip():

@@ -1,29 +1,11 @@
 import json
-import re
 
 from pydantic import BaseModel
-from typing import Any
+from typing import Any, cast
 from src.encoder import Encoder
 from src.function import FunctionDefinition, FunctionResponse
 from src.llm import LLM
-
-
-REGEX_MAPPING = [
-    (['vowel', 'vowels'], r'[aeiouAEIOU]'),
-    (
-        ['consonant', 'consonants'],
-        r'[bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ]',
-    ),
-    (['digit', 'digits', 'number', 'numbers'], r'\\d+'),
-    (['uppercase', 'upper', 'capital'], r'[A-Z]+'),
-    (['lowercase', 'lower'], r'[a-z]+'),
-    (['letter', 'letters', 'alphabetic'], r'[a-zA-Z]+'),
-    (['space', 'spaces', 'whitespace'], r'\\s+'),
-    (['punctuation', 'special'], r'[^\w\s]'),
-    (['alphanumeric'], r'\\w+'),
-    (['newline', 'newlines'], r'\\n+'),
-    (['tab', 'tabs'], r'\\t+'),
-]
+from src.parser import Parser
 
 
 class CallMeMaybe(BaseModel):
@@ -33,6 +15,7 @@ class CallMeMaybe(BaseModel):
     t_definitions: list[int]
     t_instructions_prefix: list[int]
     t_instructions_suffix: list[int]
+    parser: Parser
 
     def __init__(self, llm: LLM, func_definitions: str) -> None:
         """
@@ -68,7 +51,8 @@ class CallMeMaybe(BaseModel):
                          functions=functions,
                          t_definitions=t_definitions,
                          t_instructions_prefix=t_instructions_prefix,
-                         t_instructions_suffix=t_instructions_suffix)
+                         t_instructions_suffix=t_instructions_suffix,
+                         parser=Parser())
 
     def set_instructions(self, func: FunctionDefinition | None = None) -> None:
         """Updates the LLM context with function definitions."""
@@ -90,226 +74,60 @@ class CallMeMaybe(BaseModel):
             "additionalProperties": False,
         }
 
+        example = self._set_example(func)
+
         instructions = (
             "<|im_start|>system\n"
-            "You extract ONLY arguments for ONE selected function.\n"
+            "Task: Extract arguments for exactly ONE already-selected "
+            "function.\n"
             "Return EXACTLY one JSON object and nothing else.\n"
-            "Output must match this JSON Schema exactly:\n"
+            "The output MUST satisfy this JSON Schema exactly:\n"
             f"{json.dumps(schema, ensure_ascii=False)}\n"
-            "Rules:\n"
-            "- Use only keys listed in 'required'.\n"
-            "- Do not add keys like name/type/required/properties/arguments.\n"
-            "- Use values copied/inferred from user text, not computed function results.\n"
-            "- Extract parameter values by COPYING spans from the user's text"
-            "do NOT transform, compute, normalize, translate, or paraphrase them. \n"
+            "Hard rules:\n"
+            "- Output only a JSON object (no prose, no markdown, no code "
+            "fences).\n"
+            "- Use exactly and only the required parameter names from the "
+            "schema.\n"
+            "- Do not add extra keys.\n"
+            "- Do not output schema-related keys (name, type, required, "
+            "properties, arguments).\n"
+            "- Extract values from the user text as INPUT ARGUMENTS.\n"
+            "- Never output transformed/computed results.\n"
+            "- Keep extracted text spans verbatim when possible.\n"
+            "- For replacement requests, preserve source text and "
+            "replacement token from user input.\n"
             "Examples:\n"
-            '1. User: Greet shrek Valid: {"name":"shrek"}\n'
-            '2. User: Replace all numbers in "Hello 34 I\'m 233 years old" with NUMBERS.\n'
-            'Valid: {"source_string":"Hello 34 I\'m 233 years old",'
-            '"regex":"\\d+","replacement":"NUMBERS"}\n'
-            "- No markdown. No explanation. JSON only.\n"
+            f"{example}"
             "<|im_end|>\n"
         )
         self.llm.set_instructions(instructions)
 
-    @staticmethod
-    def _quoted_strings(text: str) -> list[str]:
-        """Returns quoted string within the prompt text."""
-        return re.findall(r"[\"']([^\"']+)[\"']", text)
+    def _set_example(self, func: FunctionDefinition) -> str:
+        example: str = ""
+
+        if func.name == 'fn_add_numbers':
+            example = "User: Add 3 and 5\nOutput: {\"a\":3,\"b\":5}\n"
+        elif func.name == 'fn_get_square_root':
+            example = "User: Get the square root of 16\nOutput: {\"number\":16}\n"
+        elif func.name == 'fn_greet':
+            example = "User: Greet shrek\nOutput: {\"name\":\"shrek\"}\n"
+        elif func.name == 'fn_reverse_string':
+            example = "User: Reverse the string 'hello'\nOutput: {\"s\":\"hello\"}\n"
+        elif func.name == 'fn_substitute_string_with_regex':
+            example = (
+                "User: Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS\n"
+                "Output: {\"source_string\":\"Hello 34 I'm 233 years old\","
+                "\"regex\":\"\\\\d+\",\"replacement\":\"NUMBERS\"}\n"
+            )
+        return example
 
     @staticmethod
-    def _number_value(text: str) -> int | float:
-        """Returns numbers within the prompt text."""
-        if re.fullmatch(r'-?\d+', text):
-            return int(text)
-        return float(text)
-
-    @staticmethod
-    def _regex_value(text: str) -> str:
-        """Returns the functions regex pattern."""
-        regex: str = ""
-        lower_prompt = text.lower()
-
-        if 'number' in lower_prompt:
-            regex = r'\d+'
-        elif 'vowel' in lower_prompt:
-            regex = r'[aeiouAEIOU]'
-        elif 'consonant' in lower_prompt:
-            regex = r'[bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ]'
-        elif 'space' in lower_prompt or 'whitespace' in lower_prompt:
-            regex = r'\s+'
-        elif 'newline' in lower_prompt:
-            regex = r'\n+'
-        elif 'tab' in lower_prompt:
-            regex = r'\t+'
-        elif 'punctuation' in lower_prompt or 'special' in lower_prompt:
-            regex = r'[^\w\s]'
-        elif 'alphanumeric' in lower_prompt:
-            regex = r'\w+'
-
-        return regex
-
-    def _extract_regex_args(self,
-                            prompt: str,
-                            quoted_strings: list[str]) -> dict[str, str]:
-        """Returns regex function arguments"""
-
-        regex = self._regex_value(prompt)
-
-        if quoted_strings:
-            regex = quoted_strings[0]
-
-        if len(quoted_strings) >= 3:
-            source_string = quoted_strings[-1]
-            replacement = quoted_strings[1]
-        else:
-            source_match = re.search(r"\bin\s+([\"'])(.+?)\1", prompt)
-            if source_match:
-                source_string = source_match.group(2)
-            elif quoted_strings:
-                source_string = quoted_strings[-1]
-            else:
-                source_string = prompt
-
-            replacement_match = re.search(r"\bwith\s+([\"'])(.+?)\1",
-                                          prompt)
-            if replacement_match:
-                replacement = replacement_match.group(2)
-            else:
-                replacement = (
-                    prompt.split(' with ', 1)[-1].strip().strip('.!?')
-                )
-
-        return {
-            'source_string': source_string,
-            'regex': regex,
-            'replacement': replacement,
-        }
-
-    def _infer_arguments(
-        self,
-        func: FunctionDefinition,
-        prompt: str,
-    ) -> dict[str, Any]:
-        """"Returns the arguments depending on the chose function."""
-
-        quoted_strings = self._quoted_strings(prompt)
-        numbers = re.findall(r'[+-]?(?:\d+\.\d+|\d+|\.\d+)', prompt)
-        arguments: dict[str, Any] = {}
-
-        for index, arg_name in enumerate(func.params.keys()):
-            if func.name == 'fn_add_numbers':
-                value = numbers[index] if index < len(numbers) else '0'
-                arguments[arg_name] = self._number_value(value)
-            elif func.name == 'fn_get_square_root':
-                value = numbers[0] if numbers else '0'
-                numeric_value = self._number_value(value)
-                if numeric_value < 0:
-                    raise ValueError("square root input cannot be negative")
-                arguments[arg_name] = self._number_value(value)
-            elif func.name == 'fn_greet':
-                match = re.search(r'(?i)\bgreet\s+(.+)$', prompt)
-                value = quoted_strings[0] if quoted_strings else (
-                    match.group(1) if match else prompt
-                )
-                arguments[arg_name] = value.strip().strip('.!?')
-            elif func.name == 'fn_reverse_string':
-                if quoted_strings:
-                    value = quoted_strings[0]
-                else:
-                    match = re.search(
-                        r'(?i)reverse(?:\s+the\s+string)?\s+(.+)$',
-                        prompt,
-                    )
-                    value = match.group(1) if match else prompt
-                arguments[arg_name] = value.strip().strip('.!?')
-            elif func.name == 'fn_substitute_string_with_regex':
-                substitute_args = self._extract_regex_args(prompt,
-                                                           quoted_strings)
-                arguments[arg_name] = substitute_args[arg_name]
-            else:
-                value = (
-                    quoted_strings[index]
-                    if index < len(quoted_strings)
-                    else prompt
-                )
-                arguments[arg_name] = value
-
-        return arguments
-
-    def _cast_argument_type(self, type: str, value: Any) -> Any:
-        """Casts a value to the expected function parameter type."""
-        if type == 'string':
-            return str(value)
-        if type == 'number':
-            if isinstance(value, bool):
-                raise ValueError(f"cannot cast {value!r} to number.")
-            if isinstance(value, (int, float)):
-                return float(value)
-            if isinstance(value, str):
-                return float(value)
-            raise ValueError(f"cannot cast {value!r} to number.")
-
-        if type == 'integer':
-            if isinstance(value, bool):
-                raise ValueError(f"cannot cast {value!r} to integer.")
-            if isinstance(value, int):
-                return value
-            if isinstance(value, float):
-                if value.is_integer():
-                    return int(value)
-                raise ValueError(f"cannot cast {value!r} to integer.")
-            if isinstance(value, str):
-                parsed = float(value)
-                if parsed.is_integer():
-                    return int(parsed)
-                raise ValueError(f"cannot cast {value!r} to integer.")
-            raise ValueError(f"cannot cast {value!r} to integer.")
-
-        if type == 'boolean':
-            if isinstance(value, bool):
-                return value
-            if isinstance(value, str):
-                lowered = value.strip().lower()
-                if lowered == 'true':
-                    return True
-                if lowered == 'false':
-                    return False
-            raise ValueError(f"cannot cast {value!r} to boolean")
-
-        return value
-
-    def _validate_arguments(self,
-                            func: FunctionDefinition,
-                            arguments: dict[str, Any]) -> dict[str, Any]:
-        """Validates and normalizes arguments produced by the LLM."""
-        if not isinstance(arguments, dict):
-            raise ValueError('[validate_arguments] arguments must be'
-                             ' a JSON object.')
-
-        extra_keys = set(arguments.keys()) - set(func.required_params)
-        if extra_keys:
-            raise ValueError('[validate_arguments] unexpected arguments: '
-                             f'{sorted(extra_keys)}.')
-
-        missing_keys = [name for name in func.required_params
-                        if name not in arguments]
-        if missing_keys:
-            raise ValueError('[validate_arguments] missing required arguments:'
-                             f' {missing_keys}.')
-
-        normalized: dict[str, Any] = {}
-        for name in func.required_params:
-            type = func.params[name]
-            normalized[name] = self._cast_argument_type(type, arguments[name])
-
-        if func.name == 'fn_get_square_root':
-            first_value = next(iter(normalized.values()))
-            if first_value < 0:
-                raise ValueError('[validate_arguments] square root input'
-                                 ' canoot be negative.')
-
-        return normalized
+    def _safe_json_loads(json_text: str) -> dict[str, Any]:
+        r"""Transforms \d, \s, and \w escapes before JSON decoding."""
+        value = cast(object, json.loads(json_text))
+        if not isinstance(value, dict):
+            raise ValueError('decoded JSON arguments must be an object')
+        return cast(dict[str, Any], value)
 
     def _decode_balanced_json(
             self,
@@ -349,16 +167,12 @@ class CallMeMaybe(BaseModel):
                         raise ValueError('[decode_balanced_json] '
                                          'invalid JSON balance.')
                     if started and depth == 0:
-                        print(f'[decode_balanced_json] json_text: {text!r}')
                         index: int = text.find('{')
                         if index == -1:
                             raise ValueError('[decode_balanced_json] JSON '
                                              'object start not found.')
                         json_text: str = text[index:]
-                        print(f'[decode_balanced_json] raw_text: {text!r}')
-                        print('[decode_balanced_json] json_text: '
-                              f'{json_text!r}')
-                        return generated, json.loads(json_text)
+                        return generated, self._safe_json_loads(json_text)
 
         raise ValueError('[decode_balaced_json] could not decode a '
                          'complete JSON object.')
@@ -384,17 +198,39 @@ class CallMeMaybe(BaseModel):
                            func: FunctionDefinition,
                            prompt: str) -> dict[str, Any]:
         """Resolves arguments using LLM first, then heuristic fallback."""
+        if func.name == 'fn_substitute_string_with_regex':
+            arguments = self.parser.infer_arguments(func, prompt)
+            return func.validate_arguments(arguments)
+
         try:
             arguments = self._generate_arguments_with_llm(func, prompt)
-            if 'arguments' in arguments and isinstance(arguments['arguments'], dict):
+            has_nested_arguments = (
+                'arguments' in arguments
+                and isinstance(arguments['arguments'], dict)
+            )
+            if has_nested_arguments:
                 arguments = arguments['arguments']
-            print(f'[resolve_arguments] args: {arguments}')
-            return self._validate_arguments(func, arguments)
-        except Exception as e:
-            print(f'[resolve_arguments] llm_failed: {type(e).__name__}: {e}')
-            fallback_arguments = self._infer_arguments(func, prompt)
-            print(f'[resolve_arguments] fallback_args: {fallback_arguments}')
-            return self._validate_arguments(func, fallback_arguments)
+            if func.name == 'fn_substitute_string_with_regex':
+                arguments['replacement'] = self.parser.normalize_replacement(
+                    arguments['replacement'])
+                expected = self.parser.infer_arguments(func, prompt)
+                if arguments != expected:
+                    raise ValueError(
+                        'substitution arguments do not match the prompt')
+            if func.name == 'fn_greet':
+                expected = self.parser.infer_arguments(func, prompt)
+                if arguments != expected:
+                    raise ValueError(
+                        'greeting argument was not copied verbatim')
+            if func.name in ('fn_add_numbers', 'fn_get_square_root'):
+                expected = self.parser.infer_arguments(func, prompt)
+                if arguments != expected:
+                    raise ValueError(
+                        'numeric argument does not match the prompt')
+            return func.validate_arguments(arguments)
+        except Exception:
+            fallback_arguments = self.parser.infer_arguments(func, prompt)
+            return func.validate_arguments(fallback_arguments)
 
     def process_prompt(self, prompt: str) -> str:
         """Manages the model call and processes its response."""
