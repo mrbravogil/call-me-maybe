@@ -121,7 +121,7 @@ class CallMeMaybe(BaseModel):
             'Do not include the function name.\n'
             'Do not wrap the result inside "arguments".\n'
             'Use exactly the parameter names defined in the schema.\n'
-            + allowed_keys_line
+            + allowed_keys_line +
             'Do not add extra keys.\n'
             'Do not rename keys.\n'
             'Do not invent missing values.\n'
