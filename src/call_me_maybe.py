@@ -84,18 +84,36 @@ class CallMeMaybe(BaseModel):
 
     def set_arguments_intructions(self, func: FunctionDefinition) -> None:
         """Updates the LLM context to generate arguments for one function."""
+        example_values: dict[str, Any] = {
+            "string": "abc",
+            "number": 1.0,
+            "integer": 1,
+            "boolean": True
+        }
+
+        example_output: dict[str, Any] = {
+            key: example_values.get(schema.get('type'), 'example')
+            for key, schema in func.params_schema.items()
+        }
+
         instructions: str = (
             '<|im_start|>system\n'
-            'You are generating arguments for exactly one function.\n'
-            'Return only a valid JSON object for "arguments".\n'
-            'Do not include markdown, explanations, or extra text.\n'
+            'Extract arguments for exactly one function from '
+            'the user request.\n'
+            'Return only one JSON object for the function arguments.\n'
+            'Do not include the function name.\n'
+            'Do not wrap the result inside "arguments".\n'
+            'Use exactly the parameter names defined in the schema.\n'
+            'Do not add extra keys.\n'
+            'Do not rename keys.\n'
+            'Do not invent missing values.\n'
+            'Do not include markdown, comments, or explanations.\n'
+            'Return JSON only.\n'
+            f'Example valid output: {json.dumps(example_output)}\n'
             'Use exactly the parameter names and types defined below.\n'
-            '<tools>\n'
+            '<|im_end|>\n'
             )
-        instructions += self.encoder.decode(func.t_definition)
-        instructions += (
-            '\n</tools>\n<|im_end|>\n'
-        )
+
         self.llm.set_instructions(instructions)
 
     @staticmethod
