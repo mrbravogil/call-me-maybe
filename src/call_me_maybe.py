@@ -96,6 +96,13 @@ class CallMeMaybe(BaseModel):
             for key, schema in func.params_schema.items()
         }
 
+        arguments_schema = {
+            "type": "object",
+            "properties": func.params_schema,
+            "required": func.required_params,
+            "additionalProperties": False,
+        }
+
         instructions: str = (
             '<|im_start|>system\n'
             'Extract arguments for exactly one function from '
@@ -109,8 +116,14 @@ class CallMeMaybe(BaseModel):
             'Do not invent missing values.\n'
             'Do not include markdown, comments, or explanations.\n'
             'Return JSON only.\n'
-            f'Example valid output: {json.dumps(example_output)}\n'
-            'Use exactly the parameter names and types defined below.\n'
+            f'Valid output example: {json.dumps(example_output)}\n'
+            'Invalid output example: {"arguments": {"name": "abc"}}\n'
+            'Invalid output example: {"name": "fn_greet", '
+            '"description": "...", '
+            '"parameters": {...}}\n'
+            '<argument_schema>\n'
+            f'{json.dumps(arguments_schema)}\n'
+            '</argument_schema>\n'
             '<|im_end|>\n'
             )
 
