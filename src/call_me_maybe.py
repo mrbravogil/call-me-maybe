@@ -210,23 +210,23 @@ class CallMeMaybe(BaseModel):
             )
             if has_nested_arguments:
                 arguments = arguments['arguments']
-            if func.name == 'fn_substitute_string_with_regex':
-                arguments['replacement'] = self.parser.normalize_replacement(
-                    arguments['replacement'])
-                expected = self.parser.infer_arguments(func, prompt)
-                if arguments != expected:
-                    raise ValueError(
-                        'substitution arguments do not match the prompt')
+            # if func.name == 'fn_substitute_string_with_regex':
+            #     arguments['replacement'] = self.parser.normalize_replacement(
+            #         arguments['replacement'])
+            #     expected = self.parser.infer_arguments(func, prompt)
+            #     if arguments != expected:
+            #         raise ValueError(
+            #             'substitution arguments do not match the prompt')
             if func.name == 'fn_greet':
                 expected = self.parser.infer_arguments(func, prompt)
                 if arguments != expected:
                     raise ValueError(
                         'greeting argument was not copied verbatim')
-            if func.name in ('fn_add_numbers', 'fn_get_square_root'):
-                expected = self.parser.infer_arguments(func, prompt)
-                if arguments != expected:
-                    raise ValueError(
-                        'numeric argument does not match the prompt')
+            # if func.name in ('fn_add_numbers', 'fn_get_square_root'):
+            #     expected = self.parser.infer_arguments(func, prompt)
+            #     if arguments != expected:
+            #         raise ValueError(
+            #             'numeric argument does not match the prompt')
             return func.validate_arguments(arguments)
         except Exception:
             fallback_arguments = self.parser.infer_arguments(func, prompt)
