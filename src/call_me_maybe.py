@@ -108,14 +108,17 @@ class CallMeMaybe(BaseModel):
         if func.name == 'fn_add_numbers':
             example = "User: Add 3 and 5\nOutput: {\"a\":3,\"b\":5}\n"
         elif func.name == 'fn_get_square_root':
-            example = "User: Get the square root of 16\nOutput: {\"number\":16}\n"
+            example = ("User: Get the square root of "
+                       "16\nOutput: {\"number\":16}\n")
         elif func.name == 'fn_greet':
             example = "User: Greet shrek\nOutput: {\"name\":\"shrek\"}\n"
         elif func.name == 'fn_reverse_string':
-            example = "User: Reverse the string 'hello'\nOutput: {\"s\":\"hello\"}\n"
+            example = ("User: Reverse the string"
+                       " 'hello'\nOutput: {\"s\":\"hello\"}\n")
         elif func.name == 'fn_substitute_string_with_regex':
             example = (
-                "User: Replace all numbers in \"Hello 34 I'm 233 years old\" with NUMBERS\n"
+                "User: Replace all numbers in \"Hello 34 I'm "
+                "233 years old\" with NUMBERS\n"
                 "Output: {\"source_string\":\"Hello 34 I'm 233 years old\","
                 "\"regex\":\"\\\\d+\",\"replacement\":\"NUMBERS\"}\n"
             )
@@ -198,9 +201,6 @@ class CallMeMaybe(BaseModel):
                            func: FunctionDefinition,
                            prompt: str) -> dict[str, Any]:
         """Resolves arguments using LLM first, then heuristic fallback."""
-        if func.name == 'fn_substitute_string_with_regex':
-            arguments = self.parser.infer_arguments(func, prompt)
-            return func.validate_arguments(arguments)
 
         try:
             arguments = self._generate_arguments_with_llm(func, prompt)
@@ -210,23 +210,14 @@ class CallMeMaybe(BaseModel):
             )
             if has_nested_arguments:
                 arguments = arguments['arguments']
-            # if func.name == 'fn_substitute_string_with_regex':
-            #     arguments['replacement'] = self.parser.normalize_replacement(
-            #         arguments['replacement'])
-            #     expected = self.parser.infer_arguments(func, prompt)
-            #     if arguments != expected:
-            #         raise ValueError(
-            #             'substitution arguments do not match the prompt')
             if func.name == 'fn_greet':
                 expected = self.parser.infer_arguments(func, prompt)
                 if arguments != expected:
-                    raise ValueError(
-                        'greeting argument was not copied verbatim')
-            # if func.name in ('fn_add_numbers', 'fn_get_square_root'):
-            #     expected = self.parser.infer_arguments(func, prompt)
-            #     if arguments != expected:
-            #         raise ValueError(
-            #             'numeric argument does not match the prompt')
+                    return func.validate_arguments(expected)
+            if func.name == 'fn_substitute_string_with_regex':
+                expected = self.parser.infer_arguments(func, prompt)
+                if arguments != expected:
+                    return func.validate_arguments(expected)
             return func.validate_arguments(arguments)
         except Exception:
             fallback_arguments = self.parser.infer_arguments(func, prompt)
@@ -258,4 +249,5 @@ class CallMeMaybe(BaseModel):
         func_response = FunctionResponse(prompt=prompt,
                                          name=func.name,
                                          parameters=arguments)
+
         return func_response.json_schema()
