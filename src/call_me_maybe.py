@@ -252,7 +252,7 @@ class CallMeMaybe(BaseModel):
         tokens += self.encoder.encode('", "arguments":'
                                       f' {json.dumps(arguments)}')
 
-        func_response = FunctionResponse(prompt=prompt,
+        func_response = FunctionResponse(prompt=original_prompt,
                                          name=func.name,
                                          parameters=arguments)
 
