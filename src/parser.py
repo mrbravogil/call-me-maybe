@@ -1,3 +1,7 @@
+"""Heuristics for extracting function arguments from natural-language
+prompts.
+"""
+
 import re
 from pydantic import BaseModel
 from typing import Any
@@ -22,8 +26,10 @@ REGEX_MAPPING = [
 
 
 class Parser(BaseModel):
+    """Infer typed function arguments from prompt text."""
 
     def __init__(self) -> None:
+        """Initialize the stateless argument parser."""
         super().__init__()
 
     @staticmethod
@@ -68,6 +74,7 @@ class Parser(BaseModel):
         prompt: str,
         quoted_strings: list[str],
     ) -> dict[str, str]:
+        """Extract source text, pattern, and replacement for regex calls."""
         source_match = re.search(
             r"\bin\s+([\"'])(.+?)\1",
             prompt,
@@ -119,6 +126,7 @@ class Parser(BaseModel):
 
     @staticmethod
     def normalize_replacement(value: str) -> str:
+        """Expand spoken names of common replacement characters."""
         special_characters = {
             'asterisk': '*',
             'asterisks': '*',
@@ -138,7 +146,7 @@ class Parser(BaseModel):
         func: FunctionDefinition,
         prompt: str,
     ) -> dict[str, Any]:
-        """"Returns the arguments depending on the chose function."""
+        """Infer arguments for ``func`` from the supplied prompt."""
 
         quoted_strings = self._quoted_strings(prompt)
         numbers = re.findall(r'[+-]?(?:\d+\.\d+|\d+|\.\d+)', prompt)

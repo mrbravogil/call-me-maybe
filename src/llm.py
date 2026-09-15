@@ -1,3 +1,5 @@
+"""Wrapper around the local language model and constrained token decoding."""
+
 import numpy as np
 from pydantic import BaseModel, ConfigDict
 from src.encoder import Encoder
@@ -5,6 +7,8 @@ from llm_sdk.llm_sdk import Small_LLM_Model
 
 
 class LLM(BaseModel):
+    """Expose instruction-aware logits and constrained token selection."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     llm: Small_LLM_Model
@@ -12,6 +16,7 @@ class LLM(BaseModel):
     t_instruction: list[int] | None
 
     def __init__(self, llm: Small_LLM_Model, encoder: Encoder):
+        """Initialize the wrapper with a model and its encoder."""
         print("\nLLM:")
         print("🛠️ Building...")
         super().__init__(
@@ -21,7 +26,7 @@ class LLM(BaseModel):
         print("✅Created...")
 
     def set_instructions(self, instructions: list[int] | str) -> None:
-        """Sets the instruction with information for LLM."""
+        """Set the instructions used as context for LLM requests."""
         if isinstance(instructions, str):
             instructions = self.encoder.encode(instructions)
         self.t_instruction = instructions
@@ -29,7 +34,8 @@ class LLM(BaseModel):
     def next_token(self,
                    tokens: list[int],
                    mask: set[int] | None = None) -> int:
-        """Returns the next token for the provided tokens."""
+        """Return the highest-scoring next token, optionally masked."""
+
         logits = self.get_logits(tokens, mask)
         selected_token = int(np.argmax(logits))
         return selected_token
@@ -39,7 +45,7 @@ class LLM(BaseModel):
         tokens: list[int],
         mask_options: list[list[int]]
     ) -> list[int]:
-        """Return the best allowed option."""
+        """Return the highest-scoring option from a list of token sequences."""
         if not mask_options:
             raise ValueError("LLM, next_option(): mask_options cannot "
                              "be empty.")
@@ -92,10 +98,7 @@ class LLM(BaseModel):
     def get_logits(self,
                    tokens: list[int],
                    mask: set[int] | None = None) -> list[float]:
-        """
-        Returns the list of logits for provided tokens.
-        Applies the mask optionally.
-        """
+        """Return model logits for ``tokens``, optionally applying a mask."""
         instructions: list[int] | None = (self.t_instruction
                                           if self.t_instruction else [])
         logits: list[float] = []
@@ -113,10 +116,7 @@ class LLM(BaseModel):
     def _apply_mask(self,
                     mask: set[int],
                     logits: list[float]) -> list[float]:
-        """
-        Returns logits with mask applied by setting all forbidden
-        token scores to -infinity.
-        """
+        """Set forbidden token scores to negative infinity."""
         masked_logits: list[float] = len(logits) * [-float('inf')]
         for id in mask:
             if 0 <= id < len(logits):

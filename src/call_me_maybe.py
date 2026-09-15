@@ -1,3 +1,9 @@
+"""Application orchestration for model-based function calling.
+
+This module provides the CallMeMaybe class to manage LLM
+calls and responses.
+"""
+
 import json
 
 from pydantic import BaseModel
@@ -9,6 +15,9 @@ from src.parser import Parser
 
 
 class CallMeMaybe(BaseModel):
+    """Coordinate prompt routing, argument extraction, and response creation.
+    """
+
     llm: LLM
     encoder: Encoder
     functions: dict[str, FunctionDefinition]
@@ -55,7 +64,7 @@ class CallMeMaybe(BaseModel):
                          parser=Parser())
 
     def set_instructions(self, func: FunctionDefinition | None = None) -> None:
-        """Updates the LLM context with function definitions."""
+        """Update the LLM context with all or one function definition."""
         definitions: list[int] = []
         if func is not None:
             definitions = func.t_definition
@@ -67,6 +76,8 @@ class CallMeMaybe(BaseModel):
         self.llm.set_instructions(instructions)
 
     def set_arguments_intructions(self, func: FunctionDefinition) -> None:
+        """Set instructions for extracting one function's arguments.
+        """
         schema = {
             "type": "object",
             "properties": func.params_schema,
@@ -103,6 +114,7 @@ class CallMeMaybe(BaseModel):
         self.llm.set_instructions(instructions)
 
     def _set_example(self, func: FunctionDefinition) -> str:
+        """Return a function-specific argument extraction example."""
         example: str = ""
 
         if func.name == 'fn_add_numbers':
@@ -135,7 +147,7 @@ class CallMeMaybe(BaseModel):
     def _decode_balanced_json(
             self,
             tokens: list[int]) -> tuple[list[int], dict[str, Any]]:
-        """Generates one balanced JSON object from the current token stream."""
+        """Generate and decode one balanced JSON object from model tokens."""
         generated: list[int] = []
         text: str = "{"
         depth = 1
@@ -184,8 +196,7 @@ class CallMeMaybe(BaseModel):
             self,
             func: FunctionDefinition,
             prompt: str) -> dict[str, Any]:
-
-        """Generates function arguments with LLM."""
+        """Generate function arguments for ``prompt`` with the LLM."""
         self.set_arguments_intructions(func)
         text: str = (
                     '<|im_start|>user\n' +
@@ -200,7 +211,7 @@ class CallMeMaybe(BaseModel):
     def _resolve_arguments(self,
                            func: FunctionDefinition,
                            prompt: str) -> dict[str, Any]:
-        """Resolves arguments using LLM first, then heuristic fallback."""
+        """Resolve arguments with the LLM and fall back to parser inference."""
 
         try:
             arguments = self._generate_arguments_with_llm(func, prompt)
@@ -210,21 +221,16 @@ class CallMeMaybe(BaseModel):
             )
             if has_nested_arguments:
                 arguments = arguments['arguments']
-            if func.name == 'fn_greet':
-                expected = self.parser.infer_arguments(func, prompt)
-                if arguments != expected:
-                    return func.validate_arguments(expected)
-            if func.name == 'fn_substitute_string_with_regex':
-                expected = self.parser.infer_arguments(func, prompt)
-                if arguments != expected:
-                    return func.validate_arguments(expected)
+            expected = self.parser.infer_arguments(func, prompt)
+            if arguments != expected:
+                return func.validate_arguments(expected)
             return func.validate_arguments(arguments)
         except Exception:
             fallback_arguments = self.parser.infer_arguments(func, prompt)
             return func.validate_arguments(fallback_arguments)
 
     def process_prompt(self, prompt: str) -> str:
-        """Manages the model call and processes its response."""
+        """Route ``prompt`` to a function and return its JSON response."""
         self.set_instructions()
         original_prompt = prompt
         prompt = prompt.replace('\\', '\\\\').replace('"', '\\"')

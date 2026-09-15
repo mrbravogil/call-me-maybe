@@ -1,3 +1,18 @@
+"""Call Me Maybe: function-calling prototype that converts natural-language
+prompts into JSON objects containing a selected function name and its
+arguments.
+
+__main__ : This module is the command-line entry point for processing
+function-calling prompts.
+
+Usage:
+    make run
+    make install
+
+Requirements:
+    Requirements: Python 3.12 or newer and `uv`.
+"""
+
 import argparse
 import json
 import os
@@ -10,7 +25,7 @@ from src.encoder import Encoder
 
 
 def parse_args() -> argparse.Namespace:
-    """Cli argument parser. Sets default args."""
+    """Parse command-line arguments and return their defaulted values."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--functions_definition',
@@ -27,12 +42,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def file_validator(inputs: str, definitions: str) -> None:
+    with open(inputs, 'r', encoding='utf-8') as c:
+        input = json.load(c)
+    if not input:
+        raise ValueError('JSON input cannot be empty.')
+    with open(definitions, 'r', encoding='utf-8') as f:
+        functions = json.load(f)
+    if not functions:
+        raise ValueError('JSON definitions cannot be empty.')
+
+
 def create_encoder(vocab_path: str) -> Encoder:
-    """
-    Builds the app's Encoder by adding the model's vocabulary.
-    This vocabulary will later serve to tokanize the user's
-    prompt.
-    """
+    """Build an encoder from the vocabulary stored at ``vocab_path``."""
     with open(vocab_path, 'r', encoding='utf-8') as f:
         tokens = json.load(f)
     return Encoder(tokens)
@@ -49,6 +71,8 @@ if __name__ == "__main__":
         from llm_sdk.llm_sdk import Small_LLM_Model
         from src.llm import LLM
         from src.call_me_maybe import CallMeMaybe
+
+        file_validator(args.input, args.functions_definition)
 
         print("\n😃 Calling QWEN 0.6b...")
         small_llm = Small_LLM_Model()
@@ -99,21 +123,22 @@ if __name__ == "__main__":
         print(f"Run: {int((end-start)/60)} minutes")
 
     except FileNotFoundError as e:
-        print(f"File not found: {e.filename}")
+        print(f"\nFile not found: {e.filename}")
         sys.exit(1)
     except PermissionError as e:
-        print(f"Permission denied in this file {e.filename}", file=sys.stderr)
+        print(f"\nPermission denied in this file {e.filename}",
+              file=sys.stderr)
         sys.exit(1)
     except json.JSONDecodeError as e:
-        print(f"Error decoding JSON: {e.msg}" +
+        print(f"\nError decoding JSON: {e.msg}" +
               f"at line {e.lineno} column {e.colno}")
         sys.exit(1)
     except ValidationError as e:
-        print("Validation error:")
+        print("\nValidation error:")
         print(e.errors())
         sys.exit(1)
     except Exception as e:
-        print(f"An unexpected error ocurred: {str(e)}")
+        print(f"\nAn unexpected error ocurred: {str(e)}")
         sys.exit(1)
     finally:
-        print("⚙️ Programme finished...")
+        print("⚙️ Programme finished...\n")

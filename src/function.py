@@ -1,3 +1,5 @@
+"""Models for function definitions and generated function-call responses."""
+
 from pydantic import BaseModel, Field, model_validator
 from typing import Any
 import json
@@ -20,6 +22,7 @@ class FunctionDefinition(BaseModel):
     def __init__(self,
                  function: dict[str, Any],
                  encoder: Encoder):
+        """Create a validated definition and tokenize its model fields."""
         name = function['name']
         description = function['description']
         params_schema = function['parameters']
@@ -49,6 +52,7 @@ class FunctionDefinition(BaseModel):
                          t_definition=t_definition)
 
     def _json_schema(self) -> str:
+        """Serialize this function definition as a JSON schema string."""
         return json.dumps({
             "name": self.name,
             "description": self.description,
@@ -140,6 +144,7 @@ class FunctionDefinition(BaseModel):
 
     @model_validator(mode="after")
     def validate_function(self) -> Self:
+        """Validate names, descriptions, and parameter schemas."""
         if not self.name.strip():
             raise ValueError("name cannot be empty")
 
@@ -171,10 +176,12 @@ class FunctionResponse(BaseModel):
     parameters: dict[str, Any] = Field(...)
 
     def json_schema(self) -> str:
+        """Serialize the generated function call as JSON."""
         return json.dumps(self.model_dump())
 
     @model_validator(mode="after")
     def validate_add_numbers(self) -> Self:
+        """Ensure numeric functions receive only numeric parameters."""
         if self.name == "fn_add_numbers" or self.name == "fn_get_square_root":
             for param in self.parameters.values():
                 if not isinstance(param, (int, float)):
@@ -185,6 +192,7 @@ class FunctionResponse(BaseModel):
 
     @model_validator(mode="after")
     def validate_str_function(self) -> Self:
+        """Ensure string functions receive only string parameters."""
         if (self.name == "fn_greet" or self.name == "fn_reverse_string"
                 or self.name == "fn_substitute_string_with_regex"):
             for param in self.parameters.values():

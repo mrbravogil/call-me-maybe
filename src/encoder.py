@@ -1,3 +1,10 @@
+"""Token encoding and text normalization utilities for the language model.
+
+This module provides the Encoder class to tokenize,
+encode and decode standard language or LLM tokens
+to process calls and responses.
+"""
+
 from pydantic import BaseModel
 from typing import Any
 import re
@@ -11,13 +18,15 @@ WORD_PATTERN = re.compile(r'''
 
 
 class Encoder(BaseModel):
+    """Encode text with a vocabulary trie and decode token IDs back to text."""
+
     _trie: dict[str, Any]
     _vocab: list[str | None]
 
     def __init__(self, tokens: dict[str, int]) -> None:
         """
-        Encoder class constructor. It builds the Encoders's
-        trie and vocab.
+        Encoder class constructor.
+        It builds the vocabulary lookup table and character trie.
         """
         max_token_id = max(tokens.values())
         vocab: list[str | None] = [None] * (max_token_id + 1)

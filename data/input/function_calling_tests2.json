@@ -1,11 +1,14 @@
 [
   {
-    "prompt": "What is the sum of 2 and 3?"
+    "prompt": "Substitute the word '$' with 'perro' in 'The gato sat on the mat with another gato'"
   },
   {
-    "prompt": "What is the sum of 265 and 345?"
+    "prompt": "Reverse the string ''"
   },
   {
-    "prompt": "Greet shrek"
+    "prompt": "Reverse the string "
+  },
+  {
+    "prompt": "Greet "
   }
 ]
