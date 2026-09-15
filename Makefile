@@ -10,32 +10,35 @@ test:
 # 	$(RUN) \
 # 		--functions_definition data/input/tests/function_empty_array.json \
 # 		--input data/input/function_calling_tests.json \
-# 		--output data/output/function_calls.json
+# 		--output data/output/function_calls.json 
 # 	$(RUN) \
 # 		--functions_definition data/input/tests/function_empty_str.json \
 # 		--input data/input/function_calling_tests.json \
-# 		--output data/output/function_calls.json
-	$(RUN) \
-		--functions_definition data/input/tests/function_error_json.json \
-		--input data/input/function_calling_tests.json \
-		--output data/output/function_calls.json
+# 		--output data/output/function_calls.json 
+# 	$(RUN) \
+# 		--functions_definition data/input/tests/function_error_json.json \
+# 		--input data/input/function_calling_tests.json \
+# 		--output data/output/function_calls.json 
 # 	$(RUN) \
 # 		--functions_definition data/input/functions_definition.json \
 # 		--input data/input/tests/prompt_empty_array.json \
-# 		--output data/output/function_calls.json
+# 		--output data/output/function_calls.json 
 # 	$(RUN) \
 # 		--functions_definition data/input/functions_definition.json \
 # 		--input data/input/tests/prompt_empty_str.json \
-# 		--output data/output/function_calls.json
+# 		--output data/output/function_calls.json 
 # 	$(RUN) \
 # 		--functions_definition data/input/functions_definition.json \
 # 		--input  data/input/tests/prompt_error_json.json \
-# 		--output data/output/function_calls.json
+# 		--output data/output/function_calls.json 
 # 	$(RUN) \
 # 			--functions_definition data/input/functions_definition.json \
 # 			--input data/input/tests/non_exist.json \
 # 			--output data/output/function_calls.json
-	
+	$(RUN) \
+			--functions_definition data/input/functions_definition.json \
+			--input data/input/tests/prompt_escape.json \
+			--output data/output/function_calls.json 
 
 install:
 	uv sync --no-install-project

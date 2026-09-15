@@ -104,7 +104,7 @@ if __name__ == "__main__":
                 prompt_start = time.time()
                 if len(p.strip()) < 1:
                     raise ValueError(f"Invalid prompt =  '{p}'")
-                print(f"\n📓'{p}'...")
+                print(f'\n📓"{p}"...')
                 result = cmm.process_prompt(p)
                 print(result)
                 prompt_end = time.time()
