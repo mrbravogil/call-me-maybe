@@ -123,7 +123,8 @@ class CallMeMaybe(BaseModel):
             example = ("User: Get the square root of "
                        "16\nOutput: {\"number\":16}\n")
         elif func.name == 'fn_greet':
-            example = "User: Greet shrek\nOutput: {\"name\":\"shrek\"}\n"
+            example = ("User: Greet shrek\nOutput: {\"name\":\"shrek\"}\n"
+                       "parameter cannot be greet")
         elif func.name == 'fn_reverse_string':
             example = ("User: Reverse the string"
                        " 'hello'\nOutput: {\"s\":\"hello\"}\n")
@@ -221,9 +222,6 @@ class CallMeMaybe(BaseModel):
             )
             if has_nested_arguments:
                 arguments = arguments['arguments']
-            expected = self.parser.infer_arguments(func, prompt)
-            if arguments != expected:
-                return func.validate_arguments(expected)
             return func.validate_arguments(arguments)
         except Exception:
             fallback_arguments = self.parser.infer_arguments(func, prompt)

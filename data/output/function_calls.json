@@ -1,3 +1,0 @@
-[
-{"prompt": "Return the path 'C:\\new\\test\\files\\input.json'", "name": "fn_get_square_root", "parameters": {"a": 0.0}}
-]
