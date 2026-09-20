@@ -7,6 +7,14 @@ run:
 		--output data/output/function_calls.json
 
 test:
+	$(RUN) \
+		--functions_definition data/input/tests/function_def_test1.json \
+		--input data/input/tests/prompts_test1.json \
+		--output data/output/function_calls.json
+# 	$(RUN) \
+# 		--functions_definition data/input/tests/function_empty_array.json \
+# 		--input data/input/function_calling_tests.json \
+# 		--output data/output/function_calls.json 
 # 	$(RUN) \
 # 		--functions_definition data/input/tests/function_empty_array.json \
 # 		--input data/input/function_calling_tests.json \
@@ -35,10 +43,10 @@ test:
 # 			--functions_definition data/input/functions_definition.json \
 # 			--input data/input/tests/non_exist.json \
 # 			--output data/output/function_calls.json
-	$(RUN) \
-			--functions_definition data/input/functions_definition.json \
-			--input data/input/tests/prompt_escape.json \
-			--output data/output/function_calls.json 
+# 	$(RUN) \
+# 			--functions_definition data/input/functions_definition.json \
+# 			--input data/input/tests/prompt_escape.json \
+# 			--output data/output/function_calls.json 
 
 install:
 	uv sync --no-install-project
@@ -53,13 +61,13 @@ clean:
 	find . -name "*.pyc" -delete
 
 lint:
-	uv run flake8 src/
+	uv run flake8 .
 	uv run mypy . --warn-return-any --warn-unused-ignores \
 		--ignore-missing-imports --disallow-untyped-defs \
 		--check-untyped-defs
 
 lint-strict:
-	uv run flake8 src/
+	uv run flake8 .
 	uv run mypy . --strict
 
 

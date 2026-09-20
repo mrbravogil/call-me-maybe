@@ -1,128 +1,135 @@
 # Call Me Maybe
 
-Call Me Maybe is a small function-calling prototype that converts natural-language prompts into structured JSON function calls.
+Call Me Maybe is a small function-calling prototype that turns a natural-language prompt into a structured JSON function call using a local model and a predefined JSON schema.
 
-The project uses a local small language model (`Qwen3-0.6B`) plus a routing layer that maps user prompts to a predefined function schema and emits the selected function name with arguments.
+The current implementation keeps a correctness-first approach: it loads a local small language model through `llm_sdk`, selects the target function from a list of available function names, and then extracts the arguments for that function before returning the final JSON payload.
 
-## What the project does
+## Introduction
 
-- Loads a local Hugging Face model through `llm_sdk`
-- Reads a JSON file with available function definitions
-- Processes a list of prompts from an input file
-- Produces JSON function-call outputs in `data/output/`
+- Loads the local Hugging Face-backed model through `llm_sdk`
+- Reads a JSON file of available function definitions
+- Validates JSON inputs and function schemas
+- Creates a custom token encoder from the model vocabulary
+- Routes the prompt to one target function using constrained token selection
+- Generates or infers the function arguments
+- Emits a final JSON object shaped like:
+
+```json
+{
+  "prompt": "What is the sum of 2 and 3?",
+  "name": "fn_add_numbers",
+  "parameters": {"a": 2, "b": 3}
+}
+```
+
+## Description
+
+The actual pipeline is:
+
+1. `src/__main__.py` loads the model and builds the encoder.
+2. `CallMeMaybe` loads all function definitions from `data/input/functions_definition.json`.
+3. `set_instructions()` injects the full function schema into the model context.
+4. `LLM.next_option()` chooses the function name by decoding token sequences under a legal-token mask.
+5. Once a function is selected, the app switches to a function-specific instruction set.
+6. `_generate_arguments_with_llm()` asks the model for a JSON object of arguments.
+7. If that fails, `Parser.infer_arguments()` is used as a fallback strategy.
+8. `FunctionDefinition.validate_arguments()` normalizes and validates the final values.
+9. `FunctionResponse.json_schema()` serializes the final output as JSON.
+
+This is a correctness-oriented path, not a lightweight classifier. The model is still used for routing and argument extraction, but the selection is constrained to valid function names and validated outputs.
 
 ## Project structure
 
 | Path | Purpose |
 | --- | --- |
-| `src/__main__.py` | CLI entrypoint used by `make run` |
-| `src/call_me_maybe.py` | Prompt processing and function-call assembly |
-| `src/llm.py` | LLM wrapper and routing/token selection logic |
-| `src/encoder.py` | Custom token encoding helpers |
-| `llm_sdk/` | Local SDK that loads the Hugging Face model |
-| `data/input/` | Function definitions and prompt test cases |
-| `data/output/` | Generated function call results |
+| `src/__main__.py` | CLI entrypoint and orchestration loop |
+| `src/call_me_maybe.py` | Main prompt routing, argument extraction, output assembly |
+| `src/llm.py` | Local model wrapper and masked token selection |
+| `src/parser.py` | Rule-based fallback argument inference |
+| `src/function.py` | Function schema validation and response typing |
+| `src/encoder.py` | Custom token encoder/decoder helpers |
+| `llm_sdk/` | Local SDK that loads the model and vocabulary |
+| `data/input/` | Function definitions and prompt datasets |
+| `data/output/` | Generated JSON outputs |
 
-## Run
+## Important
 
-```bash
-make run
-```
+- The app prioritizes correctness over speed.
+- Routing is performed by repeated token-level model calls through `next_token()` and `next_option()`.
+- The function list is dynamic: it is built directly from `functions_definition.json`.
+- The output is always a JSON object with `prompt`, `name`, and `parameters`.
 
-This command reads:
+## How to run it
 
-- `data/input/functions_definition.json`
-- `data/input/function_calling_tests.json`
-
-And writes output to:
-
-- `data/output/function_calls.json`
-
-## Dependencies
+Install dependencies:
 
 ```bash
 uv sync --no-install-project
 ```
 
-Or install the main dependencies manually:
+Run the default pipeline:
 
 ```bash
-uv add numpy pydantic torch transformers --frozen
-uv add --dev flake8 mypy --frozen
-uv lock
+make run
 ```
 
-## Performance work completed
+This reads:
 
-The main bottleneck investigation focused on `src/call_me_maybe.py`, especially inside `process_prompt()` when selecting the target function.
+- `data/input/functions_definition.json`
+- `data/input/function_calling_tests.json`
 
-### Original bottleneck
+And writes the result to:
 
-The original routing flow was:
+- `data/output/function_calls.json`
 
-1. Build the user prompt context
-2. Call `self.llm.next_option(...)`
-3. Let `src/llm.py` choose the function name token by token through `next_token()`
-4. Call `get_logits()` for each token step
-5. Let `llm_sdk` run a model forward pass for every step
+There is also a validation/test entrypoint:
 
-This was expensive because function names can be long, for example `fn_substitute_string_with_regex`, and every token decision required another inference call. In the current CPU-only environment, that pushed `make run` to around **12 minutes**.
+```bash
+make test
+```
 
-## What was tried
+## Performance status
 
-During the investigation, the routing layer was temporarily redesigned to reduce runtime:
+This project is operating in the slower but reliable mode:
 
-- dynamic labels were generated from `data/input/functions_definition.json`
-- the LLM was asked to classify a short label instead of generating the full function name
-- debug timings were added to `src/__main__.py`
-- extra tracing was added to `next_token()` and `get_logits()` to understand when the SDK was called and what it received
+- function-name routing is done token by token
+- the model is queried repeatedly for constrained token decisions
+- total runtime on CPU is still noticeable, usually around a few minutes for a small set of prompts
 
-This helped clarify the runtime behaviour and showed exactly where the cost was concentrated.
+This is a known tradeoff: correctness is preferred over raw throughput.
 
-## Why that version was not kept
+## Function schema in use
 
-Although the dynamic classification approach reduced runtime significantly, it did not produce reliable routing decisions. In practice, the model kept collapsing to incorrect function choices, especially around the routing step.
+The current example function set includes:
 
-That means the faster variant was useful for diagnosis, but not good enough for correct output.
+- `fn_add_numbers`
+- `fn_greet`
+- `fn_reverse_string`
+- `fn_get_square_root`
+- `fn_substitute_string_with_regex`
 
-## Current decision
+The actual schema is defined in `data/input/functions_definition.json` and is loaded at runtime, so the available function list is not hard-coded in the Python logic alone.
 
-For now, the project continues using the original routing path based on:
+## Example output
 
-- `process_prompt()`
-- `next_option()`
-- `next_token()`
+```json
+{"prompt": "What is the sum of 2 and 3?", "name": "fn_add_numbers", "parameters": {"a": 2, "b": 3}}
+```
 
-This path is slower, but it is currently the one producing the correct responses more consistently.
+## Current limitations
 
-## Current status
+- Prompts are processed one by one in sequence.
+- Startup still includes model vocabulary loading and custom encoder initialization.
+- The routing strategy is intentionally conservative and correctness-first.
+- The application expects the selected function to be present in the loaded schema.
 
-- **Correctness priority:** kept
-- **Current runtime:** about **8 minutes**
-- **Main bottleneck still active:** function-name routing through repeated token-level inference
+## Quick maintenance notes
 
-The work so far reduced the original runtime from roughly **12 minutes** to around **8 minutes**, but the routing stage is still the dominant cost.
+If you edit the function schema or the prompt dataset, the app will automatically pick up the new definitions from the JSON files without requiring code changes to the function registry itself.
 
-## Remaining optimization target
+The most relevant files to inspect for behavior changes are:
 
-The next optimization goal is to improve routing without losing correctness.
-
-The open problem is not whether `llm_sdk` should be used — it must remain part of the project — but how to use it in a way that is both:
-
-1. dynamic with respect to `functions_definition.json`
-2. reliable enough to keep correct function selection
-3. faster than the current token-by-token `next_option()` path
-
-## Remaining considerations
-
-1. **CPU-only execution**  
-   The runtime is currently falling back to CPU, which still limits inference speed.
-
-2. **Sequential prompt processing**  
-   Prompts are processed one by one in `src/__main__.py`.
-
-3. **Startup overhead**  
-   The program still loads the tokenizer/model and builds a custom encoder from vocab files.
-
-4. **Future routing refinement**  
-   The best future improvement is a routing strategy that stays dynamic, keeps `llm_sdk` in the loop, and avoids the heavy cost of generating long function names token by token.
+- `src/call_me_maybe.py`
+- `src/llm.py`
+- `src/function.py`
+- `src/parser.py`

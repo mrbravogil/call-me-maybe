@@ -1,0 +1,5 @@
+[
+{"prompt": "Multiply 7.5 by 4", "name": "fn_multiply_numbers", "parameters": {"a": 7.5, "b": 4.0}},
+{"prompt": "Extract the email address 'contact@example.com' from this message", "name": "fn_extract_email", "parameters": {"text": "contact@example.com"}},
+{"prompt": "Convert 25 degrees Celsius to Fahrenheit", "name": "fn_convert_celsius_to_fahrenheit", "parameters": {"celsius": 25.0}}
+]

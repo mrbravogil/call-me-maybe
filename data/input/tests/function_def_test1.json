@@ -1,0 +1,41 @@
+[
+  {
+    "name": "fn_multiply_numbers",
+    "description": "Multiply two numbers and return the result.",
+    "parameters": {
+      "a": {
+        "type": "number"
+      },
+      "b": {
+        "type": "number"
+      }
+    },
+    "returns": {
+      "type": "number"
+    }
+  },
+  {
+    "name": "fn_extract_email",
+    "description": "Extract an email address from a text.",
+    "parameters": {
+      "text": {
+        "type": "string"
+      }
+    },
+    "returns": {
+      "type": "string"
+    }
+  },
+  {
+    "name": "fn_convert_celsius_to_fahrenheit",
+    "description": "Convert a temperature from Celsius to Fahrenheit.",
+    "parameters": {
+      "celsius": {
+        "type": "number"
+      }
+    },
+    "returns": {
+      "type": "number"
+    }
+  }
+]

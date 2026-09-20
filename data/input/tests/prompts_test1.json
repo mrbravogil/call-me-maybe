@@ -1,0 +1,11 @@
+[
+  {
+    "prompt": "Multiply 7.5 by 4"
+  },
+  {
+    "prompt": "Extract the email address 'contact@example.com' from this message"
+  },
+  {
+    "prompt": "Convert 25 degrees Celsius to Fahrenheit"
+  }
+]

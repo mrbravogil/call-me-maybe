@@ -11,18 +11,18 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.4.4",
     "pydantic>=2.13.3",
-    "torch>=2.11.0",
-    "transformers>=5.8.0",
     "python-dotenv==1.0.0",
-    "huggingface-hub==1.5.0",
+    "llm-sdk",
 ]
+
+[tool.uv.sources]
+llm-sdk = { path = "llm_sdk" }
 
 [tool.uv]
 package = false
 
 [tool.mypy]
 exclude = ["llm_sdk/"]
-
 python_version = "3.12"
 warn_return_any = true
 warn_unused_ignores = true
