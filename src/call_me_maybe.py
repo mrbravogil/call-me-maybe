@@ -75,7 +75,7 @@ class CallMeMaybe(BaseModel):
         instructions.extend(self.t_instructions_suffix)
         self.llm.set_instructions(instructions)
 
-    def set_arguments_intructions(self, func: FunctionDefinition) -> None:
+    def set_arguments_instructions(self, func: FunctionDefinition) -> None:
         """Set instructions for extracting one function's arguments.
         """
         schema = {
@@ -198,7 +198,7 @@ class CallMeMaybe(BaseModel):
             func: FunctionDefinition,
             prompt: str) -> dict[str, Any]:
         """Generate function arguments for ``prompt`` with the LLM."""
-        self.set_arguments_intructions(func)
+        self.set_arguments_instructions(func)
         text: str = (
                     '<|im_start|>user\n' +
                     prompt +

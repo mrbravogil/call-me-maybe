@@ -6,8 +6,8 @@ __main__ : This module is the command-line entry point for processing
 function-calling prompts.
 
 Usage:
-    make run
     make install
+    make run
 
 Requirements:
     Requirements: Python 3.12 or newer and `uv`.
@@ -43,6 +43,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def file_validator(inputs: str, definitions: str) -> None:
+    """Validate input files' JSON format"""
     with open(inputs, 'r', encoding='utf-8') as c:
         input = json.load(c)
     if not input:

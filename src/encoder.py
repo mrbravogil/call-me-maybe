@@ -27,6 +27,11 @@ class Encoder(BaseModel):
         """
         Encoder class constructor.
         It builds the vocabulary lookup table and character trie.
+
+        max_token_id: specifies the highest token id and the vocab's size
+        vocab: returns a list of words whose index matches their token
+        trie: returns a tree where each word's characters are a branch
+        and at the edge its token id
         """
         max_token_id = max(tokens.values())
         vocab: list[str | None] = [None] * (max_token_id + 1)
@@ -34,6 +39,8 @@ class Encoder(BaseModel):
         print("\nENCODER:")
         print("🛠️ Building...")
 
+        # Builds the encoder's trie and vocab by finding the word's
+        # index within the LLM's vocab
         for word, token in tokens.items():
             vocab[token] = word
             node: dict[str, Any] = trie
@@ -70,24 +77,24 @@ class Encoder(BaseModel):
 
         return ids
 
-    def encode_separated_words(self, text: str) -> list[list[int]]:
-        """Returns tokenized prompt fragments."""
-        ids: list[list[int]] = []
+    # def encode_separated_words(self, text: str) -> list[list[int]]:
+    #     """Returns tokenized prompt fragments."""
+    #     ids: list[list[int]] = []
 
-        colon_match = re.search(r':\s*(.+)$', text)
-        if colon_match:
-            content = colon_match.group(1).strip()
-            ids.append(self.encode(content))
+    #     colon_match = re.search(r':\s*(.+)$', text)
+    #     if colon_match:
+    #         content = colon_match.group(1).strip()
+    #         ids.append(self.encode(content))
 
-        e_text = text.replace('\\"', '"')
-        parts = WORD_PATTERN.findall(e_text)
-        for p in parts:
-            cleaned = p.strip('".,!?:;\\').strip("'")
-            if not cleaned:
-                continue
-            else:
-                ids.append(self.encode(cleaned))
-        return ids
+    #     e_text = text.replace('\\"', '"')
+    #     parts = WORD_PATTERN.findall(e_text)
+    #     for p in parts:
+    #         cleaned = p.strip('".,!?:;\\').strip("'")
+    #         if not cleaned:
+    #             continue
+    #         else:
+    #             ids.append(self.encode(cleaned))
+    #     return ids
 
     def decode(self, tokens: list[int] | int) -> str:
         """Translates LLM tokens to standard text."""

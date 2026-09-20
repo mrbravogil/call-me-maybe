@@ -50,45 +50,65 @@ class LLM(BaseModel):
             raise ValueError("LLM, next_option(): mask_options cannot "
                              "be empty.")
 
+        # Copy the candidate options so the algorithm can prune them without
+        # modifying the original set passed by the caller.
         candidates = [option[:] for option in mask_options]
         best_option: list[int] = []
         current_tokens = tokens[:]
 
         while True:
+            # If there is only one candidate left and we have already matched
+            # it, the selection is complete.
             if len(candidates) == 1 and len(best_option) == len(candidates[0]):
                 return candidates[0]
 
+            # Keep only the candidates that are still compatible with the
+            # prefix already chosen in best_option.
             valid_option = [opt for opt in candidates
                             if opt[:len(best_option)] == best_option]
             if not valid_option:
                 raise ValueError("LLM, next_option():"
                                  "no valid options remain.")
 
+            # If some candidate has exactly the same length as the current
+            # prefix, it means we have reached a valid terminal option.
             last_option = [opt for opt in valid_option
                            if len(opt) == len(best_option)]
             if last_option and len(valid_option) == 1:
                 return last_option[0]
 
+            # Determine the set of token IDs that can appear next.
+            # This is the constrained decoding mask for the current step.
             allowed_next_tokens = {
                 opt[len(best_option)]
                 for opt in valid_option
                 if len(opt) > len(best_option)
             }
             if not allowed_next_tokens:
+                # If there are no valid next tokens left, but we already
+                # reached a terminal option, return it. Otherwise the
+                # candidate set is inconsistent.
                 if last_option:
                     return last_option[0]
                 raise ValueError("LLM, next_option(): options ended "
                                  "unexpectedly.")
 
+            # Ask the model to score the current token sequence while only
+            # allowing tokens in allowed_next_tokens.
             n_token = self.next_token(current_tokens, allowed_next_tokens)
             if n_token not in allowed_next_tokens:
                 raise ValueError(
                     f"Masked decoding invariant broken: {n_token}"
                     f"not in {allowed_next_tokens}"
                 )
+
+            # Append the selected token to the best prefix and also extend the
+            # sequence used as model context for the next decoding step.
             best_option.append(n_token)
             current_tokens.append(n_token)
 
+            # Filter candidates again to keep only those that still match the
+            # new prefix and are long enough to continue.
             candidates = [
                 opt for opt in valid_option
                 if len(opt) >= len(best_option)
@@ -99,15 +119,22 @@ class LLM(BaseModel):
                    tokens: list[int],
                    mask: set[int] | None = None) -> list[float]:
         """Return model logits for ``tokens``, optionally applying a mask."""
+
         instructions: list[int] | None = (self.t_instruction
                                           if self.t_instruction else [])
         logits: list[float] = []
         full_input: list[int] = []
+
         if instructions:
             full_input = instructions + tokens
         else:
             full_input = tokens
+
+        # Query the underlying LLM for its logits for the given input.
         logits = self.llm.get_logits_from_input_ids(full_input)
+
+        # If a mask is provided, disallow unauthorized tokens by replacing
+        # their scores with negative infinity before returning the result.
         if mask:
             logits = self._apply_mask(mask, logits)
 
@@ -116,7 +143,11 @@ class LLM(BaseModel):
     def _apply_mask(self,
                     mask: set[int],
                     logits: list[float]) -> list[float]:
-        """Set forbidden token scores to negative infinity."""
+        """Set forbidden token scores to negative infinity.
+        Preventing the model from choosing forbidden tokens
+        during constrained decoding.
+
+        """
         masked_logits: list[float] = len(logits) * [-float('inf')]
         for id in mask:
             if 0 <= id < len(logits):
